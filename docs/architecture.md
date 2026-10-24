@@ -65,10 +65,15 @@ bridge/                     本地桥接服务
   src/index.ts              组装以上模块
   scripts/activate.ts       pnpm activate：设备激活
   scripts/spike.ts          协议验证脚本
+bridge/src/protocol.ts      桥接服务与网页共用的消息类型（只含类型，不依赖 Node）
 web/                        网页（Vite + React）
-  src/audio/capture.ts      麦克风采集，重采样到 16kHz PCM，20ms 一帧
-  src/audio/player.ts       播放 16kHz PCM
-  src/bridge.ts             与桥接服务的 WebSocket 连接
+  src/audio/pcm.ts          Float32 与 16 位 PCM 互转、按 20ms 分帧
+  src/audio/capture.ts      麦克风采集；AudioContext({sampleRate:16000}) 负责重采样（Chrome / Edge / Safari）
+  src/audio/capture-worklet.ts  AudioWorklet，在音频线程里分帧
+  src/audio/player.ts       按到达顺序无缝播放 16kHz PCM
+  src/bridge.ts             与桥接服务的 WebSocket 连接，断开每秒重连
+  src/state.ts              服务端消息归约成界面状态（纯函数）
+  src/useVoiceBridge.ts     组合连接、收音、播放，实现半双工
   src/App.tsx               大屏面板
 docs/                       架构、验证报告
 ```
@@ -210,6 +215,7 @@ sequenceDiagram
 | 未设置 `PROJECT_DIR` | 启动时报错退出，不默认使用当前目录（避免 Claude 改到桥接服务自己的代码） |
 | 本地端口被占用 | 启动时报错退出 |
 | 麦克风权限被拒 | 网页提示，仍可用文字输入 |
+| 外放的语音被麦克风录进去 | 半双工：灵矽说话期间（`tts start` 到 `tts stop`）网页不上传麦克风音频。realtime 模式下灵矽会把回声当成用户说话而打断自己，浏览器回声消除的效果取决于设备；MVP 不做语音打断，半双工不影响免动手 |
 | 网页断开 | 停止收音（相当于 `mic off`），任务继续执行 |
 
 ## 7. 技术选型
