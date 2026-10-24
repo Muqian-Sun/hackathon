@@ -86,6 +86,7 @@ describe('runClaude', () => {
     expect(childCwd).toBe(cwd);
     expect(argv.slice(0, 2)).toEqual(['-p', '修 bug']);
     expect(argv).toEqual(expect.arrayContaining(['--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--append-system-prompt']));
+    expect(argv[argv.indexOf('--permission-prompts') + 1]).toBe('none');
   });
 
   it('非零退出且没有 result 时保留 stderr', async () => {

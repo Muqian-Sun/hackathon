@@ -105,7 +105,12 @@ export interface RunClaudeOptions {
 export function runClaude(opts: RunClaudeOptions): ClaudeRun {
   const child = spawn(
     opts.claudeBin ?? 'claude',
-    ['-p', opts.instruction, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--append-system-prompt', SUMMARY_PROMPT],
+    [
+      '-p', opts.instruction, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto',
+      // 默认 host 会等宿主回答权限确认，而我们没有宿主，进程会一直挂着；none 表示直接拒绝
+      '--permission-prompts', 'none',
+      '--append-system-prompt', SUMMARY_PROMPT,
+    ],
     { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let done: RunOutcome['done'];
