@@ -9,6 +9,7 @@
     "start": "pnpm --filter bridge start",
     "build": "pnpm --filter web build",
     "dev:web": "pnpm --filter web dev",
+    "demo:prepare": "rm -rf /tmp/voice-coder-demo && cp -R demo /tmp/voice-coder-demo && rm -rf /tmp/voice-coder-demo/__pycache__ && echo '演示项目已就绪: /tmp/voice-coder-demo'",
     "activate": "pnpm --filter bridge activate",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
