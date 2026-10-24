@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "tsx src/index.ts",
     "activate": "tsx scripts/activate.ts",
     "spike": "tsx scripts/spike.ts",
     "typecheck": "tsc --noEmit",
