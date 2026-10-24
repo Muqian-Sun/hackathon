@@ -21,13 +21,21 @@ if (!(await stat(projectDir).catch(() => undefined))?.isDirectory()) {
   process.exit(1);
 }
 const port = Number(process.env.PORT ?? 8787);
+const timeoutMin = Number(process.env.TASK_TIMEOUT_MIN ?? 10);
+if (!(timeoutMin > 0)) {
+  console.error(`TASK_TIMEOUT_MIN 必须是正数: ${process.env.TASK_TIMEOUT_MIN}`);
+  process.exit(1);
+}
 const staticDir = fileURLToPath(new URL('../../web/dist', import.meta.url));
 
 const device = await loadOrCreateDevice();
-const tasks = new TaskManager((instruction, onEvent) => {
-  log(`开始任务: ${instruction}`);
-  return runClaude({ instruction, cwd: projectDir, onEvent, log });
-});
+const tasks = new TaskManager(
+  (instruction, onEvent) => {
+    log(`开始任务: ${instruction}`);
+    return runClaude({ instruction, cwd: projectDir, onEvent, log });
+  },
+  { timeoutMs: timeoutMin * 60_000 },
+);
 const linx = new LinxClient({
   device,
   getCredentials: async () => {

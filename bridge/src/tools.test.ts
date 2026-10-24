@@ -6,7 +6,7 @@ import { createCodingTools, formatElapsed } from './tools.js';
 function setup() {
   let resolve!: (o: RunOutcome) => void;
   let t = 0;
-  const tasks = new TaskManager(() => ({ outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill: () => {} }), () => t);
+  const tasks = new TaskManager(() => ({ outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill: () => {} }), { now: () => t });
   const [run, status] = createCodingTools(tasks, () => t);
   return { run: run!, status: status!, tasks, advance: (ms: number) => (t += ms), resolve: (o: RunOutcome) => resolve(o) };
 }
@@ -48,6 +48,15 @@ describe('createCodingTools', () => {
     resolve({ exitCode: 0, done: { kind: 'done', isError: false, result: '总结：修好了', durationMs: 1, costUsd: 0 }, stderrTail: '' });
     await finished;
     expect(await status.handler({})).toBe('上一个任务已完成：修好了');
+  });
+
+  it('get_status 描述失败的任务', async () => {
+    const { run, status, resolve, tasks } = setup();
+    await run.handler({ instruction: '修 bug' });
+    const finished = new Promise((r) => tasks.once('finished', r));
+    resolve({ exitCode: 1, stderrTail: 'boom', done: undefined });
+    await finished;
+    expect(await status.handler({})).toBe('上一个任务没有成功：任务失败，详情请看屏幕');
   });
 });
 

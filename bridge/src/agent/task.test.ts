@@ -3,16 +3,17 @@ import type { AgentEvent, TaskState } from '../protocol.js';
 import type { RunOutcome } from './claude.js';
 import { TaskManager } from './task.js';
 
-function setup() {
+function setup(timeoutMs?: number) {
   let resolve!: (o: RunOutcome) => void;
   let emit!: (e: AgentEvent) => void;
-  const kill = vi.fn();
+  // 模拟进程被终止后以信号退出
+  const kill = vi.fn(() => resolve({ exitCode: null, stderrTail: '', done: undefined }));
   const startTask = vi.fn((_instruction: string, onEvent: (e: AgentEvent) => void) => {
     emit = onEvent;
     return { outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill };
   });
   let t = 1000;
-  const tasks = new TaskManager(startTask, () => t);
+  const tasks = new TaskManager(startTask, { now: () => t, timeoutMs });
   const finished: TaskState[] = [];
   tasks.on('finished', (s) => finished.push(s));
   return {
@@ -55,22 +56,49 @@ describe('TaskManager', () => {
     tasks.start('修 bug');
     await finish({ exitCode: 0, done: done('改好了\n总结：修好了加法'), stderrTail: '' });
     expect(finished[0]).toMatchObject({ status: 'succeeded', summary: '修好了加法', endedAt: 5000 });
+    expect(finished[0]!.error).toBeUndefined();
     expect(tasks.start('写文档').accepted).toBe(true);
     expect(startTask).toHaveBeenCalledTimes(2);
   });
 
-  it('result 标记错误时判为失败', async () => {
+  it('result 标记错误时播报 Claude 给出的原因，stderr 放进 error', async () => {
     const { tasks, finish, finished } = setup();
     tasks.start('修 bug');
-    await finish({ exitCode: 0, done: done('总结：没找到文件', true), stderrTail: '' });
-    expect(finished[0]).toMatchObject({ status: 'failed', summary: '任务失败：没找到文件' });
+    await finish({ exitCode: 0, done: done('总结：没找到文件', true), stderrTail: 'warn\n' });
+    expect(finished[0]).toMatchObject({ status: 'failed', summary: '任务失败：没找到文件', error: 'warn' });
   });
 
-  it('非零退出且没有 result 时用 stderr 最后一行作摘要', async () => {
+  it('异常退出且没有 result 时只播报「看屏幕」，stderr 末尾几行放进 error', async () => {
     const { tasks, finish, finished } = setup();
     tasks.start('修 bug');
-    await finish({ exitCode: 1, stderrTail: 'warn\nAPI key 无效\n', done: undefined });
-    expect(finished[0]).toMatchObject({ status: 'failed', summary: '任务失败：API key 无效' });
+    const stderr = Array.from({ length: 10 }, (_, i) => `line${i}`).join('\n');
+    await finish({ exitCode: 1, stderrTail: `${stderr}\n`, done: undefined });
+    expect(finished[0]).toMatchObject({ status: 'failed', summary: '任务失败，详情请看屏幕' });
+    expect(finished[0]!.error!.split('\n')).toEqual(['line2', 'line3', 'line4', 'line5', 'line6', 'line7', 'line8', 'line9']);
+  });
+
+  it('没有 stderr 时 error 写退出码', async () => {
+    const { tasks, finish, finished } = setup();
+    tasks.start('修 bug');
+    await finish({ exitCode: 2, stderrTail: '', done: undefined });
+    expect(finished[0]!.error).toBe('退出码 2');
+  });
+
+  it('超时后终止进程，记为失败并播报已中止', async () => {
+    const { tasks, kill, finished } = setup(30);
+    tasks.start('修 bug');
+    await vi.waitFor(() => expect(finished).toHaveLength(1));
+    expect(kill).toHaveBeenCalledTimes(1);
+    expect(finished[0]).toMatchObject({ status: 'failed' });
+    expect(finished[0]!.summary).toBe('任务超过 0 秒没有完成，已经中止');
+  });
+
+  it('按时结束的任务不会被超时终止', async () => {
+    const { tasks, finish, kill } = setup(50);
+    tasks.start('修 bug');
+    await finish({ exitCode: 0, done: done('总结：好了'), stderrTail: '' });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(kill).not.toHaveBeenCalled();
   });
 
   it('stop 终止当前任务', () => {
