@@ -1,0 +1,16 @@
+{
+  "name": "bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "activate": "tsx scripts/activate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
