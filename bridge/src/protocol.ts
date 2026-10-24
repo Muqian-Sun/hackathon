@@ -28,7 +28,8 @@ export interface TaskState {
 export type ServerMessage =
   | { type: 'linx'; status: LinxStatus }
   | { type: 'stt'; text: string }
-  | ({ type: 'tts' } & TtsEvent)
+  | { type: 'tts'; state: 'start' | 'stop' }
+  | { type: 'tts'; state: 'sentence'; text: string }
   | { type: 'task'; task: TaskState }
   | { type: 'agent'; event: AgentEvent };
 
