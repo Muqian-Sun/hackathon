@@ -68,7 +68,7 @@ bridge/                     本地桥接服务
 bridge/src/protocol.ts      桥接服务与网页共用的消息类型（只含类型，不依赖 Node）
 web/                        网页（Vite + React）
   src/audio/pcm.ts          Float32 与 16 位 PCM 互转、按 20ms 分帧
-  src/audio/capture.ts      麦克风采集；AudioContext({sampleRate:16000}) 负责重采样（Chrome / Edge / Safari）
+  src/audio/capture.ts      麦克风采集；AudioContext({sampleRate:16000}) 负责重采样（已在 Chromium 内核实测）
   src/audio/capture-worklet.ts  AudioWorklet，在音频线程里分帧
   src/audio/player.ts       按到达顺序无缝播放 16kHz PCM
   src/bridge.ts             与桥接服务的 WebSocket 连接，断开每秒重连
