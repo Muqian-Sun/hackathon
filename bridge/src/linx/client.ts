@@ -21,10 +21,12 @@ export interface LinxClientOptions {
   getCredentials: () => Promise<LinxCredentials>;
   tools: ToolDef[];
   reconnectDelaysMs?: number[];
+  /** hello 之后等 tools/list 的最长时间，超时也视为就绪 */
+  readyTimeoutMs?: number;
   log?: (msg: string) => void;
 }
 
-interface LinxEvents {
+export interface LinxEvents {
   status: [LinxStatus];
   stt: [string];
   tts: [TtsEvent];
@@ -34,6 +36,7 @@ interface LinxEvents {
 type Outgoing = Record<string, unknown>;
 
 const DEFAULT_RECONNECT_DELAYS_MS = [0, 1000, 2000, 5000, 10000];
+const DEFAULT_READY_TIMEOUT_MS = 3000;
 
 export class LinxClient extends EventEmitter<LinxEvents> {
   private ws: WebSocket | undefined;
@@ -43,8 +46,11 @@ export class LinxClient extends EventEmitter<LinxEvents> {
   /** 收到 goodbye 后到下一次 tts stop 之间是告别语，不转发 */
   private suppressFarewell = false;
   private pending: Outgoing[] = [];
+  /** 灵矽会把 text_response 当作 stt 回传，这些不是用户说的话 */
+  private announced: string[] = [];
   private attempt = 0;
   private reconnectTimer: NodeJS.Timeout | undefined;
+  private readyTimer: NodeJS.Timeout | undefined;
   private stopped = false;
   private readonly log: (msg: string) => void;
 
@@ -80,11 +86,13 @@ export class LinxClient extends EventEmitter<LinxEvents> {
 
   /** 让灵矽原样播报一段文字；未连接时先连上再发 */
   announce(text: string): void {
+    this.announced.push(text);
     this.enqueue({ type: 'listen', state: 'detect', text: '任务状态通知', text_response: text });
   }
 
   stop(): void {
     this.stopped = true;
+    clearTimeout(this.readyTimer);
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
     this.ws?.close();
@@ -161,6 +169,8 @@ export class LinxClient extends EventEmitter<LinxEvents> {
   }
 
   private handleClosed(): void {
+    clearTimeout(this.readyTimer);
+    this.readyTimer = undefined;
     this.ws = undefined;
     this.sessionId = '';
     this.suppressFarewell = false;
@@ -194,16 +204,21 @@ export class LinxClient extends EventEmitter<LinxEvents> {
       case 'hello':
         this.sessionId = msg.session_id ?? '';
         this.attempt = 0;
-        this.setStatus('connected');
-        if (this.listening) this.send(this.listenMessage());
-        for (const m of this.pending.splice(0)) this.send(m);
+        this.readyTimer = setTimeout(() => {
+          this.log('hello 之后未收到 tools/list，按就绪处理');
+          this.markReady();
+        }, this.opts.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
         break;
       case 'goodbye':
         this.suppressFarewell = true;
         break;
-      case 'stt':
-        if (typeof msg.text === 'string') this.emit('stt', msg.text);
+      case 'stt': {
+        if (typeof msg.text !== 'string') break;
+        const idx = this.announced.indexOf(msg.text);
+        if (idx >= 0) this.announced.splice(idx, 1);
+        else this.emit('stt', msg.text);
         break;
+      }
       case 'tts':
         if (msg.state === 'stop' && this.suppressFarewell) {
           this.suppressFarewell = false;
@@ -219,8 +234,26 @@ export class LinxClient extends EventEmitter<LinxEvents> {
     }
   }
 
+  /**
+   * 灵矽在 hello 后才拉取工具列表；在此之前发出的文字或语音会被大模型在没有工具的情况下处理，
+   * 它会口头答应「已经开始」却不调用工具（实测）。所以回复 tools/list 之后才算就绪。
+   */
+  private markReady(): void {
+    clearTimeout(this.readyTimer);
+    this.readyTimer = undefined;
+    if (this._status === 'connected' || !this.ws) return;
+    this.setStatus('connected');
+    if (this.listening) this.send(this.listenMessage());
+    for (const m of this.pending.splice(0)) this.send(m);
+  }
+
   private async onMcp(req: JsonRpcMessage): Promise<void> {
+    this.log(`MCP ← ${JSON.stringify(req).slice(0, 300)}`);
     const res = await handleMcpRequest(this.opts.tools, req);
-    if (res) this.send({ type: 'mcp', payload: res });
+    if (res) {
+      this.log(`MCP → ${JSON.stringify(res).slice(0, 300)}`);
+      this.send({ type: 'mcp', payload: res });
+    }
+    if (req.method === 'tools/list') this.markReady();
   }
 }
