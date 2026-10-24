@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { extractSummary, parseClaudeLine, runClaude, type AgentEvent } from './claude.js';
+import type { AgentEvent } from '../protocol.js';
+import { extractSummary, parseClaudeLine, runClaude } from './claude.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/claude-stream.jsonl', import.meta.url));
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));

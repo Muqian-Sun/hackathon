@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, RunOutcome } from './claude.js';
-import { TaskManager, type TaskState } from './task.js';
+import type { AgentEvent, TaskState } from '../protocol.js';
+import type { RunOutcome } from './claude.js';
+import { TaskManager } from './task.js';
 
 function setup() {
   let resolve!: (o: RunOutcome) => void;

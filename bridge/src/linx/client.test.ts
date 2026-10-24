@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
-import { LinxClient, type TtsEvent } from './client.js';
+import type { TtsEvent } from '../protocol.js';
+import { LinxClient } from './client.js';
 import type { ToolDef } from './mcp.js';
 
 interface Conn {

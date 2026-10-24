@@ -4,9 +4,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { AgentEvent } from './agent/claude.js';
-import type { TaskManager, TaskState } from './agent/task.js';
-import type { LinxEvents, LinxStatus } from './linx/client.js';
+import type { TaskManager } from './agent/task.js';
+import type { LinxEvents } from './linx/client.js';
+import type { AgentEvent, LinxStatus, ServerMessage, TaskState } from './protocol.js';
 
 /** LinxClient 中服务端用到的部分，便于测试替换 */
 export interface LinxLike extends EventEmitter<LinxEvents> {
@@ -71,10 +71,11 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
   const micOn = new Set<WebSocket>();
   let agentHistory: AgentEvent[] = [];
 
-  const broadcast = (data: Buffer | object) => {
+  const broadcast = (data: Buffer | ServerMessage) => {
     const payload = Buffer.isBuffer(data) ? data : JSON.stringify(data);
     for (const c of wss.clients) if (c.readyState === c.OPEN) c.send(payload);
   };
+  const sendTo = (ws: WebSocket, msg: ServerMessage) => ws.send(JSON.stringify(msg));
   const syncListening = () => linx.setListening(micOn.size > 0);
 
   const onStatus = (status: LinxStatus) => broadcast({ type: 'linx', status });
@@ -98,9 +99,9 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
   tasks.on('agent', onAgent);
 
   wss.on('connection', (ws) => {
-    ws.send(JSON.stringify({ type: 'linx', status: linx.status }));
-    if (tasks.current) ws.send(JSON.stringify({ type: 'task', task: tasks.current }));
-    for (const event of agentHistory) ws.send(JSON.stringify({ type: 'agent', event }));
+    sendTo(ws, { type: 'linx', status: linx.status });
+    if (tasks.current) sendTo(ws, { type: 'task', task: tasks.current });
+    for (const event of agentHistory) sendTo(ws, { type: 'agent', event });
 
     ws.on('message', (data, isBinary) => {
       if (isBinary) {
