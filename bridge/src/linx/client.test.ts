@@ -39,6 +39,7 @@ beforeEach(async () => {
     getCredentials: async () => ({ wsUrl: url, token: 'tok' }),
     tools: [echo],
     reconnectDelaysMs: [0],
+    readyTimeoutMs: 300,
   });
 });
 
@@ -48,13 +49,18 @@ afterEach(async () => {
   wss.close();
 });
 
-/** 等第 n 个连接发来 hello，服务端回 hello，返回该连接；beforeReply 在回 hello 之前执行 */
+const toolsList = (id: number) => JSON.stringify({ type: 'mcp', payload: { jsonrpc: '2.0', id, method: 'tools/list' } });
+const isToolsListReply = (id: number) => (m: unknown) =>
+  typeof m === 'object' && m !== null && (m as { payload?: { id?: number } }).payload?.id === id;
+
+/** 等第 n 个连接发来 hello，服务端回 hello 并拉取工具列表，返回该连接；beforeReply 在回 hello 之前执行 */
 async function acceptConnection(n: number, beforeReply?: () => void): Promise<Conn> {
   await vi.waitFor(() => expect(conns.length).toBeGreaterThanOrEqual(n));
   const conn = conns[n - 1]!;
   await vi.waitFor(() => expect(conn.inbox[0]).toMatchObject({ type: 'hello' }));
   beforeReply?.();
   conn.ws.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: `s${n}` }));
+  conn.ws.send(toolsList(99));
   await vi.waitFor(() => expect(client.status).toBe('connected'));
   return conn;
 }
@@ -76,6 +82,33 @@ describe('LinxClient', () => {
     client.sendAudio(Buffer.from([1, 2]));
     await vi.waitFor(() => expect(conn.inbox).toContainEqual(Buffer.from([1, 2])));
     expect(conn.inbox).not.toContainEqual(Buffer.from([9]));
+  });
+
+  it('回复 tools/list 之前不发排队消息，回复之后再发', async () => {
+    client.announce('任务完成');
+    await vi.waitFor(() => expect(conns).toHaveLength(1));
+    const conn = conns[0]!;
+    await vi.waitFor(() => expect(conn.inbox[0]).toMatchObject({ type: 'hello' }));
+    conn.ws.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 's1' }));
+    await sleep(100);
+    expect(client.status).toBe('connecting');
+    expect(conn.inbox).toHaveLength(1);
+
+    conn.ws.send(toolsList(2));
+    // 必须早于 readyTimeoutMs（300ms，从 hello 算起）就绪，才能证明是 tools/list 触发的
+    await vi.waitFor(() => expect(conn.inbox).toHaveLength(3), { timeout: 150 });
+    expect(isToolsListReply(2)(conn.inbox[1])).toBe(true);
+    expect(conn.inbox[2]).toMatchObject({ type: 'listen', state: 'detect', text_response: '任务完成' });
+  });
+
+  it('hello 后迟迟收不到 tools/list 时超时也就绪', async () => {
+    client.setListening(true);
+    await vi.waitFor(() => expect(conns).toHaveLength(1));
+    const conn = conns[0]!;
+    await vi.waitFor(() => expect(conn.inbox[0]).toMatchObject({ type: 'hello' }));
+    conn.ws.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 's1' }));
+    await vi.waitFor(() => expect(client.status).toBe('connected'), { timeout: 1000 });
+    expect(conn.inbox).toContainEqual({ session_id: 's1', type: 'listen', state: 'start', mode: 'realtime' });
   });
 
   it('应答灵矽的 MCP 请求', async () => {
@@ -110,6 +143,17 @@ describe('LinxClient', () => {
     await vi.waitFor(() => expect(tts).toHaveLength(2));
     expect(tts).toEqual([{ state: 'start' }, { state: 'sentence', text: '你好' }]);
     expect(audio).toEqual([Buffer.from([0xbb])]);
+  });
+
+  it('播报内容被回传为 stt 时不当作用户说的话', async () => {
+    client.setListening(true);
+    const conn = await acceptConnection(1);
+    const stt: string[] = [];
+    client.on('stt', (t) => stt.push(t));
+    client.announce('任务完成');
+    conn.ws.send(JSON.stringify({ type: 'stt', text: '任务完成' }));
+    conn.ws.send(JSON.stringify({ type: 'stt', text: '任务完成' }));
+    await vi.waitFor(() => expect(stt).toEqual(['任务完成']));
   });
 
   it('收音中断线会重连并重新开始收音', async () => {
