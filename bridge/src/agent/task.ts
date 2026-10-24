@@ -1,14 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { extractSummary, type AgentEvent, type ClaudeRun } from './claude.js';
-
-export interface TaskState {
-  id: string;
-  instruction: string;
-  status: 'running' | 'succeeded' | 'failed';
-  startedAt: number;
-  endedAt?: number;
-  summary?: string;
-}
+import type { AgentEvent, TaskState } from '../protocol.js';
+import { extractSummary, type ClaudeRun } from './claude.js';
 
 export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void) => ClaudeRun;
 

@@ -1,4 +1,5 @@
-import type { TaskManager, TaskState } from './agent/task.js';
+import type { TaskManager } from './agent/task.js';
+import type { TaskState } from './protocol.js';
 import type { ToolDef } from './linx/mcp.js';
 
 const brief = (s: string, n = 30) => (s.length > n ? `${s.slice(0, n)}…` : s);

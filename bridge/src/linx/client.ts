@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
+import type { LinxStatus, TtsEvent } from '../protocol.js';
 import type { DeviceIdentity } from './device.js';
 import { handleMcpRequest, type JsonRpcMessage, type ToolDef } from './mcp.js';
 
@@ -12,8 +13,6 @@ export interface LinxCredentials {
   token: string;
 }
 
-export type LinxStatus = 'disconnected' | 'connecting' | 'connected';
-export type TtsEvent = { state: 'start' | 'stop' } | { state: 'sentence'; text: string };
 
 export interface LinxClientOptions {
   device: DeviceIdentity;

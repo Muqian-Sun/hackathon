@@ -1,14 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-
-export type AgentEvent =
-  | { kind: 'start'; sessionId: string; model: string }
-  | { kind: 'thinking'; text: string }
-  | { kind: 'text'; text: string }
-  | { kind: 'tool'; id: string; name: string; summary: string }
-  | { kind: 'diff'; id: string; file: string; before: string; after: string }
-  | { kind: 'tool_result'; id: string; isError: boolean; output: string }
-  | { kind: 'done'; isError: boolean; result: string; durationMs: number; costUsd: number };
+import type { AgentEvent } from '../protocol.js';
 
 export const TOOL_OUTPUT_LIMIT = 2000;
 export const SUMMARY_LIMIT = 80;
