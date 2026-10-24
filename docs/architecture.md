@@ -133,7 +133,8 @@ interface TaskState {
   status: 'running' | 'succeeded' | 'failed';
   startedAt: number;
   endedAt?: number;
-  summary?: string;
+  summary?: string;   // 一句话，用于语音播报
+  error?: string;     // 失败时的错误细节，只显示在屏幕上
 }
 
 type AgentEvent =
@@ -150,6 +151,7 @@ type AgentEvent =
 
 ```
 claude -p <instruction> --output-format stream-json --verbose --permission-mode auto
+       --permission-prompts none       # 默认 host 会等宿主回答权限确认，没有宿主时进程挂起
        --append-system-prompt <要求最后一行输出「总结：<一句话>」>
 ```
 
@@ -209,7 +211,9 @@ sequenceDiagram
 | 任务完成时连接已断 | 播报进入待发队列，触发重连，hello 后发送 |
 | 灵矽重复下发同一工具调用 | 执行中的任务指令相同则返回「已在执行」，不重复启动 |
 | 任务执行中又来新任务 | 拒绝，返回当前任务摘要 |
-| Claude Code 非零退出或无 `result` 事件 | 任务记为失败，播报「任务失败」，屏幕显示 stderr 末尾 |
+| Claude 的 result 标记失败 | 播报「任务失败：<Claude 给出的总结>」，stderr 末尾 8 行显示在屏幕上 |
+| Claude Code 非零退出或无 `result` 事件 | 播报「任务失败，详情请看屏幕」，stderr 末尾 8 行（没有则写退出码）显示在屏幕上。stderr 里常有与任务无关的告警，不适合念出来 |
+| 任务超时（默认 10 分钟，`TASK_TIMEOUT_MIN` 可调） | 终止进程，播报「任务超过 N 分钟没有完成，已经中止」。实测 `auto` 权限模式依赖的安全分类模型暂时不可用时，Bash 会一直被拒绝，Claude 反复重试停不下来 |
 | Claude 输出里没有「总结：」行 | 取最后一行非代码文字，去掉 Markdown 符号后截到 80 字（实测 Claude 的最终回复通常以一句总结收尾） |
 | 桥接服务退出 | 终止 Claude 子进程 |
 | 未设置 `PROJECT_DIR` | 启动时报错退出，不默认使用当前目录（避免 Claude 改到桥接服务自己的代码） |
@@ -238,6 +242,7 @@ sequenceDiagram
 | 工具调用超时 | 10–30 秒之间 | 实测 |
 | 重连退避 0/1/2/5/10 秒 | — | 拍的，按演示时的网络情况调整 |
 | 工具输出截断 2000 字符、摘要 80 字 | — | 拍的，按大屏显示效果和播报长度调整 |
+| 任务超时 10 分钟 | — | 拍的；实测简单修复 1.5–2.5 分钟，按演示任务的实际时长调整 |
 | 本地端口 8787 | — | 拍的，可用环境变量 `PORT` 覆盖 |
 | 等待 `tools/list` 的兜底超时 3 秒 | — | 拍的；实测 `tools/list` 与 hello 同一毫秒到达，3 秒只在灵矽行为变化时兜底 |
 
