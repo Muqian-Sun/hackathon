@@ -21,7 +21,10 @@ export interface TaskState {
   status: 'running' | 'succeeded' | 'failed';
   startedAt: number;
   endedAt?: number;
+  /** 结束后的一句话摘要，用于语音播报 */
   summary?: string;
+  /** 失败时的错误细节，只显示在屏幕上 */
+  error?: string;
 }
 
 /** 桥接服务 → 网页的 JSON 消息；二进制帧是 16kHz 单声道 16 位 PCM */

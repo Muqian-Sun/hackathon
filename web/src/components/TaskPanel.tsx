@@ -45,6 +45,7 @@ export function TaskPanel({ task, steps }: { task?: TaskState; steps: AgentEvent
         </div>
         <p className="instruction">{task.instruction}</p>
         {task.summary && <p className="summary">{task.summary}</p>}
+        {task.error && <pre className="task-error">{task.error}</pre>}
       </div>
       <div className="timeline" ref={listRef}>
         <Timeline items={items} />
