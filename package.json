@@ -6,6 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "start": "pnpm --filter bridge start",
     "activate": "pnpm --filter bridge activate",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
