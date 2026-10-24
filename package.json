@@ -7,6 +7,8 @@
   },
   "scripts": {
     "start": "pnpm --filter bridge start",
+    "build": "pnpm --filter web build",
+    "dev:web": "pnpm --filter web dev",
     "activate": "pnpm --filter bridge activate",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
