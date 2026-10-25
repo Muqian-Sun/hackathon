@@ -101,6 +101,36 @@ describe('TaskManager', () => {
     expect(kill).not.toHaveBeenCalled();
   });
 
+  it('cancel 中止执行中的任务，记为已停止', async () => {
+    const { tasks, kill, finished } = setup();
+    tasks.start('修 bug');
+    expect(tasks.cancel()).toBe(true);
+    expect(kill).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(finished).toHaveLength(1));
+    expect(finished[0]).toMatchObject({ status: 'cancelled', summary: '任务已按要求停止' });
+    expect(finished[0]!.error).toBeUndefined();
+  });
+
+  it('没有执行中的任务时 cancel 返回 false', async () => {
+    const { tasks, finish, kill } = setup();
+    expect(tasks.cancel()).toBe(false);
+    tasks.start('修 bug');
+    await finish({ exitCode: 0, done: done('总结：好了'), stderrTail: '' });
+    expect(tasks.cancel()).toBe(false);
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it('中止过的任务不影响下一个任务的失败判定', async () => {
+    const { tasks, finished, finish } = setup();
+    tasks.start('第一个');
+    tasks.cancel();
+    await vi.waitFor(() => expect(finished).toHaveLength(1));
+    tasks.start('第二个');
+    await finish({ exitCode: 1, stderrTail: 'boom', done: undefined });
+    await vi.waitFor(() => expect(finished).toHaveLength(2));
+    expect(finished[1]).toMatchObject({ status: 'failed', summary: '任务失败，详情请看屏幕' });
+  });
+
   it('stop 终止当前任务', () => {
     const { tasks, kill } = setup();
     tasks.start('修 bug');

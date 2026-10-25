@@ -51,6 +51,8 @@ linx.on('status', (s) => log(`灵矽连接: ${s}`));
 linx.on('stt', (text) => log(`识别: ${text}`));
 tasks.on('finished', (task) => {
   log(`任务结束(${task.status}): ${task.summary}`);
+  // 用户主动叫停时，灵矽调用 stop_task 后已经回复过，不再重复播报
+  if (task.status === 'cancelled') return;
   linx.announce(task.status === 'succeeded' ? `任务完成。${task.summary}` : task.summary ?? '任务失败');
 });
 

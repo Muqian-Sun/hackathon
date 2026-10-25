@@ -101,6 +101,7 @@ docs/                       架构、验证报告
 | 工具 | 参数 | 返回给大模型的文字 |
 |---|---|---|
 | `self.coding.run_task` | `instruction: string`：整理后的完整中文编程指令 | 立即返回。空闲时：「已开始执行，完成后会主动语音通知」；忙碌时：「上一个任务还在执行：<指令摘要>」 |
+| `self.coding.stop_task` | 无 | 中止执行中的任务（状态记为 `cancelled`，不再额外播报）；没有任务时说明不需要停止 |
 | `self.coding.get_status` | 无 | 当前任务的状态、已运行时长；已结束则给出摘要 |
 
 约束（来自实测）：工具调用超时在 10–30 秒之间，超时后灵矽会重发相同调用，所以 `run_task` 必须立即返回，并对执行中的相同指令去重。返回文字不能写「已完成」，否则大模型会提前宣布完成。
@@ -130,7 +131,7 @@ docs/                       架构、验证报告
 interface TaskState {
   id: string;
   instruction: string;
-  status: 'running' | 'succeeded' | 'failed';
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
   endedAt?: number;
   summary?: string;   // 一句话，用于语音播报

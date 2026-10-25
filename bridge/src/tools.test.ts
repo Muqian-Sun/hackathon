@@ -6,15 +6,32 @@ import { createCodingTools, formatElapsed } from './tools.js';
 function setup() {
   let resolve!: (o: RunOutcome) => void;
   let t = 0;
-  const tasks = new TaskManager(() => ({ outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill: () => {} }), { now: () => t });
-  const [run, status] = createCodingTools(tasks, () => t);
-  return { run: run!, status: status!, tasks, advance: (ms: number) => (t += ms), resolve: (o: RunOutcome) => resolve(o) };
+  // 模拟进程被终止后以信号退出
+  const kill = () => resolve({ exitCode: null, stderrTail: '', done: undefined });
+  const tasks = new TaskManager(() => ({ outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill }), { now: () => t });
+  const tools = createCodingTools(tasks, () => t);
+  const byName = (name: string) => tools.find((x) => x.name === `self.coding.${name}`)!;
+  return {
+    tools, run: byName('run_task'), status: byName('get_status'), stop: byName('stop_task'),
+    tasks, advance: (ms: number) => (t += ms), resolve: (o: RunOutcome) => resolve(o),
+  };
 }
 
 describe('createCodingTools', () => {
   it('工具名与架构文档一致', () => {
-    const { run, status } = setup();
-    expect([run.name, status.name]).toEqual(['self.coding.run_task', 'self.coding.get_status']);
+    const { tools } = setup();
+    expect(tools.map((x) => x.name)).toEqual(['self.coding.run_task', 'self.coding.stop_task', 'self.coding.get_status']);
+  });
+
+  it('stop_task 中止执行中的任务；没有任务时说明不需要停止', async () => {
+    const { run, stop, status, tasks } = setup();
+    expect(await stop.handler({})).toContain('不需要停止');
+    await run.handler({ instruction: '修 bug' });
+    const finished = new Promise((r) => tasks.once('finished', r));
+    expect(await stop.handler({})).toContain('已经中止');
+    await finished;
+    expect(tasks.current?.status).toBe('cancelled');
+    expect(await status.handler({})).toBe('上一个任务已经按要求停止了。');
   });
 
   it('run_task 立即返回「开始执行」，不说已完成', async () => {

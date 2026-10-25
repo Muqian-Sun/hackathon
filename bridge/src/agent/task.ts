@@ -32,6 +32,7 @@ export class TaskManager extends EventEmitter<TaskEvents> {
   private _current: TaskState | undefined;
   private handle: ClaudeRun | undefined;
   private seq = 0;
+  private cancelRequested = false;
   private readonly now: () => number;
   private readonly timeoutMs: number;
 
@@ -57,6 +58,7 @@ export class TaskManager extends EventEmitter<TaskEvents> {
     }
     const task: TaskState = { id: String(++this.seq), instruction, status: 'running', startedAt: this.now() };
     this._current = task;
+    this.cancelRequested = false;
     this.emit('task', { ...task });
     const handle = this.startTask(instruction, (e) => this.emit('agent', e));
     this.handle = handle;
@@ -72,10 +74,14 @@ export class TaskManager extends EventEmitter<TaskEvents> {
       const claudeSummary = o.done ? extractSummary(o.done.result) : '';
       const stderr = o.stderrTail.trim().split('\n').slice(-ERROR_TAIL_LINES).join('\n');
       // summary 用于语音播报，要短且能听懂；错误细节放 error 显示在屏幕上
+      let status: TaskState['status'] = ok ? 'succeeded' : 'failed';
       let summary: string;
       let error: string | undefined;
       if (ok) {
         summary = claudeSummary;
+      } else if (this.cancelRequested) {
+        status = 'cancelled';
+        summary = '任务已按要求停止';
       } else if (timedOut) {
         const limit = this.timeoutMs >= 60_000 ? `${Math.round(this.timeoutMs / 60_000)} 分钟` : `${Math.round(this.timeoutMs / 1000)} 秒`;
         summary = `任务超过 ${limit}没有完成，已经中止`;
@@ -87,7 +93,7 @@ export class TaskManager extends EventEmitter<TaskEvents> {
         summary = '任务失败，详情请看屏幕';
         error = stderr || `退出码 ${o.exitCode}`;
       }
-      Object.assign(task, { status: ok ? 'succeeded' : 'failed', endedAt: this.now(), summary, error });
+      Object.assign(task, { status, endedAt: this.now(), summary, error });
       if (this.handle === handle) this.handle = undefined;
       this.emit('task', { ...task });
       this.emit('finished', { ...task });
@@ -95,6 +101,15 @@ export class TaskManager extends EventEmitter<TaskEvents> {
     return { accepted: true, task: { ...task } };
   }
 
+  /** 用户要求中止当前任务；没有任务在执行时返回 false */
+  cancel(): boolean {
+    if (this._current?.status !== 'running' || !this.handle) return false;
+    this.cancelRequested = true;
+    this.handle.kill();
+    return true;
+  }
+
+  /** 桥接服务退出时终止子进程 */
   stop(): void {
     this.handle?.kill();
   }
