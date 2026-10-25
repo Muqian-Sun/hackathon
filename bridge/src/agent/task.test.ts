@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, TaskState } from '../protocol.js';
-import type { RunOutcome } from './claude.js';
+import type { RunOutcome } from './process.js';
 import { TaskManager } from './task.js';
 
 function setup(timeoutMs?: number) {

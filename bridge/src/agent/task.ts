@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events';
 import type { AgentEvent, TaskState } from '../protocol.js';
-import { extractSummary, type ClaudeRun } from './claude.js';
+import type { AgentRun } from './process.js';
+import { extractSummary } from './summary.js';
 
-export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void, resumeSessionId?: string) => ClaudeRun;
+export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void, resumeSessionId?: string) => AgentRun;
 
 export interface StartOptions {
   /** 用户明确要求新任务时开新会话；默认接着上一个会话 */
@@ -35,7 +36,7 @@ const normalize = (s: string) => s.replace(/\s+/g, '');
 /** 同一时间只跑一个编程任务 */
 export class TaskManager extends EventEmitter<TaskEvents> {
   private _current: TaskState | undefined;
-  private handle: ClaudeRun | undefined;
+  private handle: AgentRun | undefined;
   private seq = 0;
   private cancelRequested = false;
   /** 上一个任务的 Claude 会话，下一个任务默认用 --resume 接着做 */

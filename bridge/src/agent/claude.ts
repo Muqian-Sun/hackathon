@@ -1,14 +1,6 @@
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import type { AgentEvent } from '../protocol.js';
-
-export const TOOL_OUTPUT_LIMIT = 2000;
-export const SUMMARY_LIMIT = 80;
-
-export const SUMMARY_PROMPT =
-  '任务结束时，在最终回复的最后单独写一行「总结：」加一句不超过 40 字的中文口语总结，用于语音播报，不要包含代码、文件路径或 Markdown 符号。';
-
-const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+import { runJsonlProcess, type AgentRun, type RunAgentOptions } from './process.js';
+import { SUMMARY_PROMPT, TOOL_OUTPUT_LIMIT, truncate } from './summary.js';
 
 function summarizeToolInput(input: Record<string, unknown>): string {
   for (const key of ['file_path', 'path', 'command', 'pattern', 'url', 'query', 'description']) {
@@ -71,93 +63,19 @@ export function parseClaudeLine(line: string): AgentEvent[] {
   }
 }
 
-/** 取「总结：」行；没有时取最后一行非代码文字，去掉 Markdown 符号 */
-export function extractSummary(result: string): string {
-  const tagged = [...result.matchAll(/^\s*总结[:：]\s*(.+)$/gm)].at(-1)?.[1];
-  if (tagged) return truncate(tagged.trim(), SUMMARY_LIMIT);
-  const withoutCode = result.replace(/```[\s\S]*?```/g, '');
-  const lines = withoutCode
-    .split('\n')
-    .map((l) => l.replace(/[#>*`_|]/g, '').replace(/^\s*[-\d.]+\s+/, '').trim())
-    .filter((l) => l && !/^-+$/.test(l));
-  return truncate(lines.at(-1) ?? '', SUMMARY_LIMIT);
-}
-
-export interface RunOutcome {
-  exitCode: number | null;
-  done?: Extract<AgentEvent, { kind: 'done' }>;
-  stderrTail: string;
-}
-
-export interface ClaudeRun {
-  outcome: Promise<RunOutcome>;
-  kill: () => void;
-}
-
-export interface RunClaudeOptions {
-  instruction: string;
-  cwd: string;
-  onEvent: (e: AgentEvent) => void;
-  /** 接着这个会话继续（claude --resume），会话 id 保持不变 */
-  resumeSessionId?: string;
-  claudeBin?: string;
-  log?: (msg: string) => void;
-}
-
-export function runClaude(opts: RunClaudeOptions): ClaudeRun {
-  const child = spawn(
-    opts.claudeBin ?? 'claude',
-    [
+export function runClaude(opts: RunAgentOptions): AgentRun {
+  return runJsonlProcess({
+    bin: opts.bin ?? 'claude',
+    args: [
       '-p', opts.instruction, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto',
       // 默认 host 会等宿主回答权限确认，而我们没有宿主，进程会一直挂着；none 表示直接拒绝
       '--permission-prompts', 'none',
       '--append-system-prompt', SUMMARY_PROMPT,
       ...(opts.resumeSessionId ? ['--resume', opts.resumeSessionId] : []),
     ],
-    { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-  let done: RunOutcome['done'];
-  let stderr = '';
-  child.stderr.on('data', (d: Buffer) => {
-    stderr = (stderr + d.toString()).slice(-4000);
+    cwd: opts.cwd,
+    parseLine: parseClaudeLine,
+    onEvent: opts.onEvent,
+    log: opts.log,
   });
-  const rl = createInterface({ input: child.stdout });
-  rl.on('line', (line) => {
-    if (!line.trim()) return;
-    let events: AgentEvent[];
-    try {
-      events = parseClaudeLine(line);
-    } catch {
-      opts.log?.(`无法解析的 Claude 输出: ${line.slice(0, 200)}`);
-      return;
-    }
-    for (const e of events) {
-      if (e.kind === 'done') done = e;
-      opts.onEvent(e);
-    }
-  });
-  const outcome = new Promise<RunOutcome>((resolve) => {
-    let exitCode: number | null = null;
-    let exited = false;
-    let closed = false;
-    const finish = () => {
-      if (exited && closed) resolve({ exitCode, done, stderrTail: stderr.slice(-1000) });
-    };
-    child.on('error', (err) => {
-      stderr += `\n${err.message}`;
-      exited = true;
-      closed = true;
-      finish();
-    });
-    child.on('exit', (code) => {
-      exitCode = code;
-      exited = true;
-      finish();
-    });
-    rl.on('close', () => {
-      closed = true;
-      finish();
-    });
-  });
-  return { outcome, kill: () => child.kill('SIGTERM') };
 }

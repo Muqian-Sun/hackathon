@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../protocol.js';
-import { extractSummary, parseClaudeLine, runClaude } from './claude.js';
+import { parseClaudeLine, runClaude } from './claude.js';
+import { extractSummary } from './summary.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/claude-stream.jsonl', import.meta.url));
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -66,12 +67,12 @@ describe('runClaude', () => {
   const runs: Array<() => void> = [];
   afterEach(() => runs.splice(0).forEach((k) => k()));
 
-  async function start(env: Record<string, string>, claudeBin = FAKE_CLAUDE) {
+  async function start(env: Record<string, string>, bin = FAKE_CLAUDE) {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'runner-')));
     const argsFile = join(cwd, 'args.json');
     Object.assign(process.env, { FAKE_ARGS_FILE: argsFile, FAKE_FIXTURE: '', FAKE_EXIT: '0', FAKE_STDERR: '' }, env);
     const events: AgentEvent[] = [];
-    const run = runClaude({ instruction: '修 bug', cwd, onEvent: (e) => events.push(e), claudeBin });
+    const run = runClaude({ instruction: '修 bug', cwd, onEvent: (e) => events.push(e), bin });
     runs.push(run.kill);
     return { run, events, cwd, argsFile };
   }
@@ -94,7 +95,7 @@ describe('runClaude', () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'runner-')));
     const argsFile = join(cwd, 'args.json');
     Object.assign(process.env, { FAKE_ARGS_FILE: argsFile, FAKE_FIXTURE: '', FAKE_EXIT: '0', FAKE_STDERR: '' });
-    await runClaude({ instruction: '再改一下', cwd, onEvent: () => {}, claudeBin: FAKE_CLAUDE, resumeSessionId: 'sess-1' }).outcome;
+    await runClaude({ instruction: '再改一下', cwd, onEvent: () => {}, bin: FAKE_CLAUDE, resumeSessionId: 'sess-1' }).outcome;
     const { argv } = JSON.parse(await readFile(argsFile, 'utf8'));
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-1');
   });
