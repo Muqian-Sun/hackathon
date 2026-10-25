@@ -55,8 +55,9 @@ describe('startServer', () => {
     linx.emit('stt', '你好');
     linx.emit('tts', { state: 'sentence', text: '好的' });
     linx.emit('audio', Buffer.from([1, 2]));
-    await vi.waitFor(() => expect(inbox).toHaveLength(4));
+    await vi.waitFor(() => expect(inbox).toHaveLength(5));
     expect(inbox.slice(1)).toEqual([
+      { type: 'selected_agent', agent: 'claude' },
       { type: 'stt', text: '你好' },
       { type: 'tts', state: 'sentence', text: '好的' },
       Buffer.from([1, 2]),
@@ -71,9 +72,10 @@ describe('startServer', () => {
     linx.emit('tts', { state: 'sentence', text: '好的' });
     linx.emit('tts', { state: 'stop' });
     const { inbox } = await connect();
-    await vi.waitFor(() => expect(inbox).toHaveLength(5));
+    await vi.waitFor(() => expect(inbox).toHaveLength(6));
     expect(inbox).toEqual([
       { type: 'linx', status: 'disconnected' },
+      { type: 'selected_agent', agent: 'claude' },
       { type: 'stt', text: '修 bug' },
       { type: 'tts', state: 'start' },
       { type: 'tts', state: 'sentence', text: '好的' },
@@ -85,8 +87,8 @@ describe('startServer', () => {
     const { linx, connect } = await setup();
     for (let i = 0; i < CONVERSATION_HISTORY_LIMIT + 3; i++) linx.emit('stt', String(i));
     const { inbox } = await connect();
-    await vi.waitFor(() => expect(inbox).toHaveLength(CONVERSATION_HISTORY_LIMIT + 1));
-    expect(inbox[1]).toEqual({ type: 'stt', text: '3' });
+    await vi.waitFor(() => expect(inbox).toHaveLength(CONVERSATION_HISTORY_LIMIT + 2));
+    expect(inbox[2]).toEqual({ type: 'stt', text: '3' });
   });
 
   it('任一网页开着麦克风就保持收音，全部关闭或断开后停止', async () => {
@@ -124,8 +126,9 @@ describe('startServer', () => {
     expect(first.inbox).toContainEqual(expect.objectContaining({ type: 'task', task: expect.objectContaining({ status: 'running' }) }));
 
     const reloaded = await connect();
-    await vi.waitFor(() => expect(reloaded.inbox).toHaveLength(3));
+    await vi.waitFor(() => expect(reloaded.inbox).toHaveLength(4));
     expect(reloaded.inbox.slice(1)).toEqual([
+      { type: 'selected_agent', agent: 'claude' },
       { type: 'task', task: expect.objectContaining({ instruction: '修 bug', status: 'running' }) },
       { type: 'agent', event: { kind: 'text', text: '在看代码' } },
     ]);
@@ -140,8 +143,18 @@ describe('startServer', () => {
     await finished;
     tasks.start('第二个');
     const { inbox } = await connect();
-    await vi.waitFor(() => expect(inbox).toHaveLength(2));
-    expect(inbox[1]).toMatchObject({ type: 'task', task: { instruction: '第二个' } });
+    await vi.waitFor(() => expect(inbox).toHaveLength(3));
+    expect(inbox[2]).toMatchObject({ type: 'task', task: { instruction: '第二个' } });
+  });
+
+  it('切换 agent 时广播给所有网页', async () => {
+    const { tasks, connect } = await setup();
+    const { inbox } = await connect();
+    await vi.waitFor(() => expect(inbox).toContainEqual({ type: 'selected_agent', agent: 'claude' }));
+    tasks.setAgent('codex');
+    await vi.waitFor(() => expect(inbox).toContainEqual({ type: 'selected_agent', agent: 'codex' }));
+    const late = await connect();
+    await vi.waitFor(() => expect(late.inbox[1]).toEqual({ type: 'selected_agent', agent: 'codex' }));
   });
 
   it('端口被占用时 startServer 拒绝而不是让进程崩溃', async () => {

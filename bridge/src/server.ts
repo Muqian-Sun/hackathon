@@ -6,7 +6,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { TaskManager } from './agent/task.js';
 import type { LinxEvents } from './linx/client.js';
-import type { AgentEvent, LinxStatus, ServerMessage, TaskState } from './protocol.js';
+import type { AgentEvent, AgentKind, LinxStatus, ServerMessage, TaskState } from './protocol.js';
 
 /** LinxClient 中服务端用到的部分，便于测试替换 */
 export interface LinxLike extends EventEmitter<LinxEvents> {
@@ -105,9 +105,12 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
   linx.on('audio', onAudio);
   tasks.on('task', onTask);
   tasks.on('agent', onAgent);
+  const onSelection = (agent: AgentKind) => broadcast({ type: 'selected_agent', agent });
+  tasks.on('selection', onSelection);
 
   wss.on('connection', (ws) => {
     sendTo(ws, { type: 'linx', status: linx.status });
+    sendTo(ws, { type: 'selected_agent', agent: tasks.agent });
     for (const msg of conversationHistory) sendTo(ws, msg);
     if (tasks.current) sendTo(ws, { type: 'task', task: tasks.current });
     for (const event of agentHistory) sendTo(ws, { type: 'agent', event });
@@ -152,6 +155,7 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
       linx.off('audio', onAudio);
       tasks.off('task', onTask);
       tasks.off('agent', onAgent);
+      tasks.off('selection', onSelection);
       for (const c of wss.clients) c.terminate();
       wss.close();
       await new Promise<void>((resolve) => http.close(() => resolve()));
