@@ -46,9 +46,9 @@ function say(state: UiState, role: Utterance['role'], text: string): UiState {
 
 export function reducer(state: UiState, action: UiAction): UiState {
   if (action.type === 'bridge') {
-    // 重连后服务端会重发当前任务和步骤的快照，先清空避免重复
+    // 重连后服务端会重发对话、当前任务和步骤的快照，先清空避免重复
     return action.open
-      ? { ...state, bridgeOpen: true, task: undefined, steps: [] }
+      ? { ...state, bridgeOpen: true, conversation: [], turnOpen: false, task: undefined, steps: [] }
       : { ...state, bridgeOpen: false, linx: 'disconnected', speaking: false, turnOpen: false };
   }
   const msg = action.msg;

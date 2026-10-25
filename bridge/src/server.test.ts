@@ -8,7 +8,7 @@ import type { RunOutcome } from './agent/claude.js';
 import { TaskManager } from './agent/task.js';
 import type { LinxEvents } from './linx/client.js';
 import type { AgentEvent, LinxStatus } from './protocol.js';
-import { startServer, type BridgeServer, type LinxLike } from './server.js';
+import { CONVERSATION_HISTORY_LIMIT, startServer, type BridgeServer, type LinxLike } from './server.js';
 
 class FakeLinx extends EventEmitter<LinxEvents> implements LinxLike {
   status: LinxStatus = 'disconnected';
@@ -61,6 +61,32 @@ describe('startServer', () => {
       { type: 'tts', state: 'sentence', text: '好的' },
       Buffer.from([1, 2]),
     ]);
+  });
+
+  it('新连接先收到对话回放，语音帧不回放', async () => {
+    const { linx, connect } = await setup();
+    linx.emit('stt', '修 bug');
+    linx.emit('tts', { state: 'start' });
+    linx.emit('audio', Buffer.from([1]));
+    linx.emit('tts', { state: 'sentence', text: '好的' });
+    linx.emit('tts', { state: 'stop' });
+    const { inbox } = await connect();
+    await vi.waitFor(() => expect(inbox).toHaveLength(5));
+    expect(inbox).toEqual([
+      { type: 'linx', status: 'disconnected' },
+      { type: 'stt', text: '修 bug' },
+      { type: 'tts', state: 'start' },
+      { type: 'tts', state: 'sentence', text: '好的' },
+      { type: 'tts', state: 'stop' },
+    ]);
+  });
+
+  it('对话回放有上限，保留最新的', async () => {
+    const { linx, connect } = await setup();
+    for (let i = 0; i < CONVERSATION_HISTORY_LIMIT + 3; i++) linx.emit('stt', String(i));
+    const { inbox } = await connect();
+    await vi.waitFor(() => expect(inbox).toHaveLength(CONVERSATION_HISTORY_LIMIT + 1));
+    expect(inbox[1]).toEqual({ type: 'stt', text: '3' });
   });
 
   it('任一网页开着麦克风就保持收音，全部关闭或断开后停止', async () => {
