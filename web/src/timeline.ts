@@ -13,7 +13,7 @@ export type TimelineItem =
       result?: { isError: boolean; output: string };
       diff?: { file: string; before: string; after: string };
     }
-  | { kind: 'done'; isError: boolean; durationMs: number; costUsd: number };
+  | { kind: 'done'; isError: boolean; durationMs: number; costUsd?: number };
 
 /** 把工具调用、diff、结果按 id 合并成一条，便于大屏上一眼看清每一步 */
 export function buildTimeline(steps: AgentEvent[]): TimelineItem[] {

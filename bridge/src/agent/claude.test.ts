@@ -8,7 +8,7 @@ import { parseClaudeLine, runClaude } from './claude.js';
 import { extractSummary } from './summary.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/claude-stream.jsonl', import.meta.url));
-const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
+const FAKE_AGENT = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
 
 describe('parseClaudeLine', () => {
   it('把真实输出解析成统一事件', async () => {
@@ -67,7 +67,7 @@ describe('runClaude', () => {
   const runs: Array<() => void> = [];
   afterEach(() => runs.splice(0).forEach((k) => k()));
 
-  async function start(env: Record<string, string>, bin = FAKE_CLAUDE) {
+  async function start(env: Record<string, string>, bin = FAKE_AGENT) {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'runner-')));
     const argsFile = join(cwd, 'args.json');
     Object.assign(process.env, { FAKE_ARGS_FILE: argsFile, FAKE_FIXTURE: '', FAKE_EXIT: '0', FAKE_STDERR: '' }, env);
@@ -95,7 +95,7 @@ describe('runClaude', () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'runner-')));
     const argsFile = join(cwd, 'args.json');
     Object.assign(process.env, { FAKE_ARGS_FILE: argsFile, FAKE_FIXTURE: '', FAKE_EXIT: '0', FAKE_STDERR: '' });
-    await runClaude({ instruction: '再改一下', cwd, onEvent: () => {}, bin: FAKE_CLAUDE, resumeSessionId: 'sess-1' }).outcome;
+    await runClaude({ instruction: '再改一下', cwd, onEvent: () => {}, bin: FAKE_AGENT, resumeSessionId: 'sess-1' }).outcome;
     const { argv } = JSON.parse(await readFile(argsFile, 'utf8'));
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-1');
   });

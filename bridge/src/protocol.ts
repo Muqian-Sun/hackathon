@@ -13,7 +13,8 @@ export type AgentEvent =
   | { kind: 'tool'; id: string; name: string; summary: string }
   | { kind: 'diff'; id: string; file: string; before: string; after: string }
   | { kind: 'tool_result'; id: string; isError: boolean; output: string }
-  | { kind: 'done'; isError: boolean; result: string; durationMs: number; costUsd: number };
+  /** costUsd 只有 Claude Code 提供 */
+  | { kind: 'done'; isError: boolean; result: string; durationMs: number; costUsd?: number };
 
 export interface TaskState {
   id: string;

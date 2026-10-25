@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 测试用的假 claude：记录参数和工作目录，按行输出 FAKE_FIXTURE 指向的文件，以 FAKE_EXIT 退出
+// 测试用的假 agent 可执行文件：记录参数和工作目录，按行输出 FAKE_FIXTURE 指向的文件，以 FAKE_EXIT 退出
 import { readFileSync, writeFileSync } from 'node:fs';
 
 if (process.env.FAKE_ARGS_FILE) {
