@@ -28,7 +28,7 @@ flowchart TB
   subgraph Mac["开发者的电脑"]
     WEB["网页（浏览器）<br/>收音 · 播放 · 大屏面板"]
     BR["本地桥接服务（Node + TypeScript）<br/>灵矽客户端 · 设备端 MCP · 任务管理 · 本地服务"]
-    CC["Claude Code（子进程）<br/>读写项目代码"]
+    CC["Claude Code 或 Codex（子进程）<br/>读写项目代码，可语音切换"]
   end
   TV["电视 / 显示器<br/>只负责显示"]
 
@@ -60,8 +60,11 @@ bridge/                     本地桥接服务
   src/linx/ota.ts           OTA 激活：上报设备、取激活码或 token
   src/linx/mcp.ts           设备端 MCP 请求处理（initialize / tools/list / tools/call）
   src/linx/client.ts        灵矽 WebSocket 客户端：握手、收发音频、重连、屏蔽告别语
-  src/agent/claude.ts       启动 Claude Code 子进程，把 stream-json 解析成统一事件
-  src/agent/task.ts         任务管理：单任务、去重、状态查询、完成回调
+  src/agent/process.ts      启动按行输出 JSON 的 agent 子进程并汇总结果（各 agent 共用）
+  src/agent/summary.ts      附加给 agent 的总结要求与总结提取
+  src/agent/claude.ts       Claude Code 的启动参数与 stream-json 解析
+  src/agent/codex.ts        Codex 的启动参数与 exec --json 解析（改文件前后各读一次生成 diff）
+  src/agent/task.ts         任务管理：单任务、去重、中止、超时、每个 agent 各自的会话接续、当前 agent
   src/tools.ts              两个 MCP 工具的定义，连接任务管理
   src/server.ts             本地 HTTP + WebSocket：托管网页、转发音频和事件
   src/index.ts              组装以上模块
@@ -90,7 +93,7 @@ docs/                       架构、验证报告
 | `linx/client` | 维持与灵矽的连接，对外暴露事件和收发方法 | `ws`、`mcp` | 取 token（由调用方注入） |
 | `agent/claude` | 启动和终止 Claude Code，逐行解析输出 | `child_process` | 任务排队 |
 | `agent/task` | 同一时间只跑一个任务，记录状态，结束时回调 | `claude` | 语音、网络 |
-| `tools` | 定义 `self.coding.run_task`、`self.coding.get_status` | `task` | 协议细节 |
+| `tools` | 定义 `run_task`、`stop_task`、`switch_agent`、`get_status` 四个设备端工具 | `task` | 协议细节 |
 | `server` | 托管网页，桥接网页与灵矽客户端、任务管理 | `ws`、`node:http` | 业务判断 |
 | `web` | 收音、播放、展示 | 浏览器 API | 任何业务逻辑 |
 
@@ -104,6 +107,7 @@ docs/                       架构、验证报告
 |---|---|---|
 | `self.coding.run_task` | `instruction: string`：整理后的完整中文编程指令；`new_task?: boolean`：用户明确说「新任务」时为 true | 立即返回。空闲时：「已开始执行，任务还没有完成……」；忙碌时：「上一个任务还在执行：<指令摘要>」。默认用 `claude --resume` 接着上一个会话 |
 | `self.coding.stop_task` | 无 | 中止执行中的任务（状态记为 `cancelled`，不再额外播报）；没有任务时说明不需要停止 |
+| `self.coding.switch_agent` | `agent: "claude" \| "codex"` | 切换下一个任务使用的 agent；正在执行的任务不受影响。每个 agent 各自记住会话 |
 | `self.coding.get_status` | 无 | 当前任务的状态、已运行时长；已结束则给出摘要 |
 
 约束（来自实测）：工具调用超时在 10–30 秒之间，超时后灵矽会重发相同调用，所以 `run_task` 必须立即返回，并对执行中的相同指令去重。返回文字不能写「已完成」，否则大模型会提前宣布完成。
@@ -133,6 +137,7 @@ docs/                       架构、验证报告
 interface TaskState {
   id: string;
   instruction: string;
+  agent: "claude" | "codex";
   status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
   resumed: boolean;   // 接着上一个 Claude 会话
@@ -236,6 +241,7 @@ sequenceDiagram
 | Node 24 + TypeScript，`tsx` 直接运行 | 前后端同一种语言；`ws` 库支持自定义握手请求头 |
 | `ws` | Node 下事实标准的 WebSocket 实现 |
 | Claude Code 命令行 `-p --output-format stream-json` | 本机 2.1.302 已验证；逐行 JSON 便于实时推送 |
+| Codex 命令行 `exec --json` | 本机 0.147 已验证；`--ignore-user-config` 避开与登录方式不兼容的默认模型，`--sandbox workspace-write` 限制只能写工作目录 |
 | Vite + React | 实时事件流的状态管理比原生 DOM 简单 |
 | AudioWorklet 采集 + 重采样 | 浏览器麦克风通常是 44.1/48kHz，需要降到 16kHz |
 | vitest | 与 Vite 生态一致，原生支持 TypeScript |
