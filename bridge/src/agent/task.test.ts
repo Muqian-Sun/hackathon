@@ -8,7 +8,7 @@ function setup(timeoutMs?: number) {
   let emit!: (e: AgentEvent) => void;
   // 模拟进程被终止后以信号退出
   const kill = vi.fn(() => resolve({ exitCode: null, stderrTail: '', done: undefined }));
-  const startTask = vi.fn((_instruction: string, onEvent: (e: AgentEvent) => void) => {
+  const startTask = vi.fn((_instruction: string, onEvent: (e: AgentEvent) => void, _resume?: string) => {
     emit = onEvent;
     return { outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill };
   });
@@ -32,7 +32,7 @@ describe('TaskManager', () => {
     tasks.on('agent', (e) => events.push(e));
     const res = tasks.start('修 bug');
     expect(res).toMatchObject({ accepted: true, task: { status: 'running', instruction: '修 bug', startedAt: 1000 } });
-    expect(startTask).toHaveBeenCalledWith('修 bug', expect.any(Function));
+    expect(startTask).toHaveBeenCalledWith('修 bug', expect.any(Function), undefined);
     emit({ kind: 'text', text: 'hi' });
     expect(events).toEqual([{ kind: 'text', text: 'hi' }]);
   });
@@ -129,6 +129,57 @@ describe('TaskManager', () => {
     await finish({ exitCode: 1, stderrTail: 'boom', done: undefined });
     await vi.waitFor(() => expect(finished).toHaveLength(2));
     expect(finished[1]).toMatchObject({ status: 'failed', summary: '任务失败，详情请看屏幕' });
+  });
+
+  describe('多轮接续', () => {
+    const ok = { exitCode: 0, done: done('总结：好了'), stderrTail: '' };
+    const finishNth = async (s: ReturnType<typeof setup>, n: number, o: RunOutcome) => {
+      await s.finish(o);
+      await vi.waitFor(() => expect(s.finished).toHaveLength(n));
+    };
+
+    it('第一个任务开新会话，之后默认接着上一个会话', async () => {
+      const s = setup();
+      expect(s.tasks.start('修 bug')).toMatchObject({ task: { resumed: false } });
+      expect(s.startTask.mock.calls[0]![2]).toBeUndefined();
+      s.emit({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      await finishNth(s, 1, ok);
+
+      expect(s.tasks.start('再改一下')).toMatchObject({ task: { resumed: true } });
+      expect(s.startTask.mock.calls[1]![2]).toBe('sess-1');
+    });
+
+    it('用户说新任务时开新会话', async () => {
+      const s = setup();
+      s.tasks.start('修 bug');
+      s.emit({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      await finishNth(s, 1, ok);
+      expect(s.tasks.start('写文档', { newSession: true })).toMatchObject({ task: { resumed: false } });
+      expect(s.startTask.mock.calls[1]![2]).toBeUndefined();
+    });
+
+    it('接续的会话失效（没有 start 事件就失败）时清掉，下一次开新会话', async () => {
+      const s = setup();
+      s.tasks.start('修 bug');
+      s.emit({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      await finishNth(s, 1, ok);
+      s.tasks.start('再改一下');
+      await finishNth(s, 2, { exitCode: 1, stderrTail: 'No conversation found', done: undefined });
+      s.tasks.start('第三次');
+      expect(s.startTask.mock.calls[2]![2]).toBeUndefined();
+    });
+
+    it('接续的任务失败但会话有效时，下一次仍然接续', async () => {
+      const s = setup();
+      s.tasks.start('修 bug');
+      s.emit({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      await finishNth(s, 1, ok);
+      s.tasks.start('再改一下');
+      s.emit({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      await finishNth(s, 2, { exitCode: 1, stderrTail: 'boom', done: undefined });
+      s.tasks.start('第三次');
+      expect(s.startTask.mock.calls[2]![2]).toBe('sess-1');
+    });
   });
 
   it('stop 终止当前任务', () => {

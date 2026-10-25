@@ -2,7 +2,12 @@ import { EventEmitter } from 'node:events';
 import type { AgentEvent, TaskState } from '../protocol.js';
 import { extractSummary, type ClaudeRun } from './claude.js';
 
-export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void) => ClaudeRun;
+export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void, resumeSessionId?: string) => ClaudeRun;
+
+export interface StartOptions {
+  /** 用户明确要求新任务时开新会话；默认接着上一个会话 */
+  newSession?: boolean;
+}
 
 export type StartResult =
   | { accepted: true; task: TaskState }
@@ -33,6 +38,8 @@ export class TaskManager extends EventEmitter<TaskEvents> {
   private handle: ClaudeRun | undefined;
   private seq = 0;
   private cancelRequested = false;
+  /** 上一个任务的 Claude 会话，下一个任务默认用 --resume 接着做 */
+  private sessionId: string | undefined;
   private readonly now: () => number;
   private readonly timeoutMs: number;
 
@@ -49,18 +56,31 @@ export class TaskManager extends EventEmitter<TaskEvents> {
     return this._current;
   }
 
-  start(instruction: string): StartResult {
+  start(instruction: string, opts: StartOptions = {}): StartResult {
     const cur = this._current;
     if (cur?.status === 'running') {
       // 灵矽工具调用超时后会重发相同指令，不能重复启动
       const reason = normalize(cur.instruction) === normalize(instruction) ? 'duplicate' : 'busy';
       return { accepted: false, reason, task: cur };
     }
-    const task: TaskState = { id: String(++this.seq), instruction, status: 'running', startedAt: this.now() };
+    if (opts.newSession) this.sessionId = undefined;
+    const resumeId = this.sessionId;
+    const task: TaskState = { id: String(++this.seq), instruction, status: 'running', startedAt: this.now(), resumed: resumeId !== undefined };
     this._current = task;
     this.cancelRequested = false;
     this.emit('task', { ...task });
-    const handle = this.startTask(instruction, (e) => this.emit('agent', e));
+    let sawStart = false;
+    const handle = this.startTask(
+      instruction,
+      (e) => {
+        if (e.kind === 'start' && e.sessionId) {
+          sawStart = true;
+          this.sessionId = e.sessionId;
+        }
+        this.emit('agent', e);
+      },
+      resumeId,
+    );
     this.handle = handle;
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -70,6 +90,8 @@ export class TaskManager extends EventEmitter<TaskEvents> {
 
     void handle.outcome.then((o) => {
       clearTimeout(timer);
+      // 接续的会话已失效时 Claude 不会输出 init 事件；清掉它，免得之后每次都拿坏 id 接续
+      if (resumeId !== undefined && !sawStart) this.sessionId = undefined;
       const ok = o.exitCode === 0 && o.done !== undefined && !o.done.isError;
       const claudeSummary = o.done ? extractSummary(o.done.result) : '';
       const stderr = o.stderrTail.trim().split('\n').slice(-ERROR_TAIL_LINES).join('\n');

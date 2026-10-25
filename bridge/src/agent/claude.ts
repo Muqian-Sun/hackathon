@@ -98,6 +98,8 @@ export interface RunClaudeOptions {
   instruction: string;
   cwd: string;
   onEvent: (e: AgentEvent) => void;
+  /** 接着这个会话继续（claude --resume），会话 id 保持不变 */
+  resumeSessionId?: string;
   claudeBin?: string;
   log?: (msg: string) => void;
 }
@@ -110,6 +112,7 @@ export function runClaude(opts: RunClaudeOptions): ClaudeRun {
       // 默认 host 会等宿主回答权限确认，而我们没有宿主，进程会一直挂着；none 表示直接拒绝
       '--permission-prompts', 'none',
       '--append-system-prompt', SUMMARY_PROMPT,
+      ...(opts.resumeSessionId ? ['--resume', opts.resumeSessionId] : []),
     ],
     { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] },
   );

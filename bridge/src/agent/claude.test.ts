@@ -87,6 +87,16 @@ describe('runClaude', () => {
     expect(argv.slice(0, 2)).toEqual(['-p', '修 bug']);
     expect(argv).toEqual(expect.arrayContaining(['--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--append-system-prompt']));
     expect(argv[argv.indexOf('--permission-prompts') + 1]).toBe('none');
+    expect(argv).not.toContain('--resume');
+  });
+
+  it('指定会话时用 --resume 接续', async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'runner-')));
+    const argsFile = join(cwd, 'args.json');
+    Object.assign(process.env, { FAKE_ARGS_FILE: argsFile, FAKE_FIXTURE: '', FAKE_EXIT: '0', FAKE_STDERR: '' });
+    await runClaude({ instruction: '再改一下', cwd, onEvent: () => {}, claudeBin: FAKE_CLAUDE, resumeSessionId: 'sess-1' }).outcome;
+    const { argv } = JSON.parse(await readFile(argsFile, 'utf8'));
+    expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-1');
   });
 
   it('非零退出且没有 result 时保留 stderr', async () => {
