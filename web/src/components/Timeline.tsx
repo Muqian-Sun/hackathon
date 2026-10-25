@@ -62,7 +62,8 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
           case 'done':
             return (
               <li key={i} className={`step meta ${item.isError ? 'error' : ''}`}>
-                {item.isError ? '执行失败' : '执行完成'} · 用时 {Math.round(item.durationMs / 1000)} 秒 · 费用 ${item.costUsd.toFixed(2)}
+                {item.isError ? '执行失败' : '执行完成'} · 用时 {Math.round(item.durationMs / 1000)} 秒
+                {item.costUsd !== undefined && ` · 费用 $${item.costUsd.toFixed(2)}`}
               </li>
             );
         }
