@@ -20,7 +20,7 @@
 ```
 浏览器（收音 · 播放 · 面板） ⇄ 本地 WebSocket ⇄ 桥接服务（Node） ⇄ 灵矽云端（WebSocket + 设备端 MCP）
                                                       ⇅
-                                               Claude Code（子进程）
+                                    Claude Code 或 Codex（子进程，可语音切换）
 Mac 屏幕 ── AirPlay（macOS 自带）──▶ 电视 / 显示器
 ```
 
@@ -31,6 +31,7 @@ Mac 屏幕 ── AirPlay（macOS 自带）──▶ 电视 / 显示器
 - macOS（投屏用系统自带的 AirPlay；其余部分在 Linux 上也能运行）
 - Node.js 24+、pnpm 10+
 - 已登录的 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 命令行（`claude --version` 能输出版本）
+- 可选：已登录的 [Codex](https://github.com/openai/codex) 命令行，用于语音切换到 Codex（本机实测 0.147）
 - 灵矽账号（[智控台](https://xrobo.qiniu.com/)）
 - Chromium 内核浏览器（Chrome、Edge 等；收音依赖 `AudioContext({ sampleRate: 16000 })`，目前只在 Chromium 内核上实测过）
 - Python 3（仅演示项目需要）
@@ -98,6 +99,7 @@ PROJECT_DIR=/tmp/voice-coder-demo pnpm start
 | `PROJECT_DIR` | 无（必填） | Claude Code 的工作目录，也就是要改的项目 |
 | `PORT` | `8787` | 本地服务端口 |
 | `TASK_TIMEOUT_MIN` | `10` | 单个任务的最长运行时间（分钟），超时终止并播报 |
+| `CODE_AGENT` | `claude` | 默认使用的编程 agent：`claude` 或 `codex`，运行中可以语音切换 |
 
 ### 6. 投屏到电视
 
@@ -113,7 +115,8 @@ PROJECT_DIR=/tmp/voice-coder-demo pnpm start
 2. 任务进行中问「做完了吗」——灵矽调用 `get_status` 报告进度；
 3. 「给刚才修的那个函数加上参数校验，名字为空时抛异常」——Claude 接着上一轮的会话做，记得「刚才那个函数」是哪个，面板上标「接续上一轮」；
 4. 「新任务：calc.py 里的加法写错了，修一下」——开新会话；
-5. 任务进行中说「停下，先别改了」——任务立即中止。
+5. 任务进行中说「停下，先别改了」——任务立即中止；
+6. 「换成 Codex」，再提一个需求——由 Codex 执行，大屏标出当前 agent；「换回 Claude Code」切回来，仍能接着之前的 Claude 会话。
 
 笔记本外放时建议戴耳机，或把音量调低；网页在灵矽说话期间不上传麦克风（半双工），但离麦克风太近仍可能误识别。
 
