@@ -109,7 +109,10 @@ describe('LinxClient', () => {
     await vi.waitFor(() => expect(conn.inbox[0]).toMatchObject({ type: 'hello' }));
     conn.ws.send(JSON.stringify({ type: 'hello', transport: 'websocket', session_id: 's1' }));
     await vi.waitFor(() => expect(client.status).toBe('connected'), { timeout: 1000 });
-    expect(conn.inbox).toContainEqual({ session_id: 's1', type: 'listen', state: 'start', mode: 'realtime' });
+    // 客户端置为 connected 与服务端收到 listen start 之间有网络往返，要等到达
+    await vi.waitFor(() =>
+      expect(conn.inbox).toContainEqual({ session_id: 's1', type: 'listen', state: 'start', mode: 'realtime' }),
+    );
   });
 
   it('应答灵矽的 MCP 请求', async () => {
