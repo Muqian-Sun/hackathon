@@ -2,8 +2,8 @@ import { diffRows, shortPath, toolLabel, type TimelineItem } from '../timeline';
 
 const OUTPUT_PREVIEW_LINES = 4;
 
-function DiffView({ before, after }: { before: string; after: string }) {
-  const { rows, omitted } = diffRows(before, after);
+export function DiffView({ before, after, limit }: { before: string; after: string; limit?: number }) {
+  const { rows, omitted } = diffRows(before, after, limit);
   return (
     <pre className="diff">
       {rows.map((r, i) => (

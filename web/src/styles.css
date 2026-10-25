@@ -173,6 +173,8 @@ pre {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* 网格子元素默认最小宽度为内容宽度，长命令会把整列撑出屏幕 */
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 0.8rem;
@@ -438,4 +440,99 @@ pre {
 
 .diff-row.more {
   color: var(--muted);
+}
+
+/* 大屏模式 */
+.btn.toggle {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.8rem;
+}
+
+.btn.toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tests {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.05rem 0.6rem;
+  border-radius: 0.4rem;
+}
+
+.tests.all-passed {
+  color: var(--ok);
+  background: var(--add-bg);
+}
+
+.tests.has-failed {
+  color: var(--bad);
+  background: var(--del-bg);
+}
+
+.focus {
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.6rem;
+  background: var(--panel-2);
+}
+
+.focus.error {
+  border-color: var(--bad);
+}
+
+.focus-title {
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.focus-title code {
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.focus .diff,
+.focus-output {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.focus-output {
+  padding: 0.5rem 0.8rem;
+  border-radius: 0.4rem;
+  background: var(--bg);
+  white-space: pre-wrap;
+}
+
+.focus.error .focus-output {
+  color: var(--bad);
+}
+
+.subtitle {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border);
+  font-size: 1.9rem;
+  line-height: 1.35;
+}
+
+.subtitle .who {
+  flex: none;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.subtitle.live {
+  border-color: var(--accent);
+}
+
+.subtitle.live .who {
+  color: var(--accent);
 }

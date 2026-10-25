@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AgentEvent, AgentKind, TaskState } from '../../../bridge/src/protocol';
 import { AGENT_LABEL } from '../agents';
+import { latestTestSummary, pickFocus } from '../focus';
 import { buildTimeline } from '../timeline';
 import { useAutoScroll } from '../useAutoScroll';
+import { FocusCard } from './FocusCard';
 import { Timeline } from './Timeline';
 
 const STATUS_LABEL: Record<TaskState['status'], string> = { running: '执行中', succeeded: '已完成', failed: '失败', cancelled: '已停止' };
@@ -22,10 +24,12 @@ function formatDuration(ms: number) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 }
 
-export function TaskPanel({ task, steps, agent }: { task?: TaskState; steps: AgentEvent[]; agent: AgentKind }) {
+export function TaskPanel({ task, steps, agent, tvMode }: { task?: TaskState; steps: AgentEvent[]; agent: AgentKind; tvMode: boolean }) {
   const running = task?.status === 'running';
   const now = useNow(running);
   const items = useMemo(() => buildTimeline(steps), [steps]);
+  const focus = useMemo(() => pickFocus(items), [items]);
+  const tests = useMemo(() => latestTestSummary(items), [items]);
   const listRef = useAutoScroll<HTMLDivElement>(steps.length);
 
   if (!task) {
@@ -44,12 +48,18 @@ export function TaskPanel({ task, steps, agent }: { task?: TaskState; steps: Age
           <span className={`badge ${task.status}`}>{STATUS_LABEL[task.status]}</span>
           <span className="tag agent">{AGENT_LABEL[task.agent]}</span>
           {task.resumed && <span className="tag">接续上一轮</span>}
+          {tests && (
+            <span className={`tests ${tests.failed > 0 ? 'has-failed' : 'all-passed'}`}>
+              ✓ {tests.passed} 通过{tests.failed > 0 && ` ✗ ${tests.failed} 失败`}
+            </span>
+          )}
           <span className="elapsed">{formatDuration((task.endedAt ?? now) - task.startedAt)}</span>
         </div>
         <p className="instruction">{task.instruction}</p>
         {task.summary && <p className="summary">{task.summary}</p>}
         {task.error && <pre className="task-error">{task.error}</pre>}
       </div>
+      {tvMode && focus && <FocusCard focus={focus} />}
       <div className="timeline" ref={listRef}>
         <Timeline items={items} />
       </div>
