@@ -38,7 +38,9 @@ describe('createCodingTools', () => {
     const { run, tasks } = setup();
     const text = await run.handler({ instruction: '修 bug' });
     expect(text).toContain('开始执行');
-    expect(text).not.toContain('已完成');
+    expect(text).toContain('还没有完成');
+    // 只允许以「不要说已完成」的否定形式出现
+    expect(text.replace('不要说已完成', '')).not.toContain('已完成');
     expect(tasks.current?.status).toBe('running');
   });
 

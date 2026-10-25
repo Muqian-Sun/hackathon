@@ -26,17 +26,24 @@ export function createCodingTools(tasks: TaskManager, now: () => number = Date.n
     {
       name: 'self.coding.run_task',
       // 「调用前不要回复」与「一句话」两处措辞是实测出来的：否则灵矽会在调用前后各说一遍「已经开始」
-      description: '把用户的编程需求交给 Claude Code 在本机项目里执行，例如写代码、改代码、查看项目、跑测试。听到编程需求时先直接调用本工具，调用前不要回复用户。任务在后台执行，完成后会自动语音通知用户。',
+      description: '把用户的编程需求交给 Claude Code 在本机项目里执行，例如写代码、改代码、查看项目、跑测试。用户问起项目和代码的问题（比如刚才改了什么、为什么这样改、某个文件里有什么）也调用本工具，Claude Code 记得之前做过的事。听到这类需求时先直接调用本工具，调用前不要回复用户。任务在后台执行，完成后会自动语音通知用户。',
       inputSchema: {
         type: 'object',
-        properties: { instruction: { type: 'string', description: '整理后的完整中文编程指令' } },
+        properties: {
+          instruction: { type: 'string', description: '整理后的完整中文编程指令' },
+          new_task: {
+            type: 'boolean',
+            description: '只有用户明确说「新任务」「换个任务」「重新开始」时才填 true。默认不填，Claude Code 会记得之前做过的事，接着上一个任务继续',
+          },
+        },
         required: ['instruction'],
       },
       handler: async (args) => {
         const instruction = typeof args.instruction === 'string' ? args.instruction.trim() : '';
         if (!instruction) throw new Error('缺少 instruction 参数');
-        const res = tasks.start(instruction);
-        if (res.accepted) return '已在后台开始执行，完成后会自动语音通知用户。用一句不超过十个字的话告诉用户已经开始。';
+        const res = tasks.start(instruction, { newSession: args.new_task === true });
+        // 完成播报会以「任务完成。…」进入灵矽的对话上下文，几轮后大模型会模仿这个句式抢先宣布完成（实测），所以要明确禁止
+        if (res.accepted) return '已在后台开始执行，任务还没有完成，不要说已完成，完成后系统会自动播报。用一句不超过十个字的话告诉用户已经开始。';
         if (res.reason === 'duplicate') return '这个任务已经在后台执行中，完成后会主动语音通知用户。';
         return `上一个任务还在执行（${brief(res.task.instruction)}，已运行 ${formatElapsed(now() - res.task.startedAt)}），请等它结束，或者让用户说「停下」先中止它。`;
       },
