@@ -4,6 +4,7 @@
  */
 
 export type LinxStatus = 'disconnected' | 'connecting' | 'connected';
+export type AgentKind = 'claude' | 'codex';
 export type TtsEvent = { state: 'start' | 'stop' } | { state: 'sentence'; text: string };
 
 export type AgentEvent =
@@ -19,6 +20,7 @@ export type AgentEvent =
 export interface TaskState {
   id: string;
   instruction: string;
+  agent: AgentKind;
   status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
   /** 接着上一个任务的 Claude 会话继续 */
@@ -37,6 +39,8 @@ export type ServerMessage =
   | { type: 'tts'; state: 'start' | 'stop' }
   | { type: 'tts'; state: 'sentence'; text: string }
   | { type: 'task'; task: TaskState }
+  /** 当前选中、将执行下一个任务的 agent */
+  | { type: 'selected_agent'; agent: AgentKind }
   | { type: 'agent'; event: AgentEvent };
 
 /** 网页 → 桥接服务的 JSON 消息；二进制帧是麦克风 PCM */
