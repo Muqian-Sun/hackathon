@@ -79,6 +79,27 @@ describe('createCodingTools', () => {
   });
 });
 
+describe('run_task 的 new_task 参数', () => {
+  it('默认接续上一个会话，new_task 为 true 时开新会话', async () => {
+    const resumes: Array<string | undefined> = [];
+    const tasks = new TaskManager((_i, onEvent, resume) => {
+      resumes.push(resume);
+      onEvent({ kind: 'start', sessionId: 'sess-1', model: 'm' });
+      return { outcome: Promise.resolve({ exitCode: 0, done: { kind: 'done', isError: false, result: '', durationMs: 1, costUsd: 0 }, stderrTail: '' }), kill: () => {} };
+    });
+    const run = createCodingTools(tasks).find((t) => t.name === 'self.coding.run_task')!;
+    const next = () => new Promise((r) => tasks.once('finished', r));
+    let f = next();
+    await run.handler({ instruction: '修 bug' });
+    await f;
+    f = next();
+    await run.handler({ instruction: '再改一下' });
+    await f;
+    await run.handler({ instruction: '写文档', new_task: true });
+    expect(resumes).toEqual([undefined, 'sess-1', undefined]);
+  });
+});
+
 describe('formatElapsed', () => {
   it('秒和分秒两种格式', () => {
     expect(formatElapsed(59_400)).toBe('59 秒');

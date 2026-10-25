@@ -20,6 +20,8 @@ export interface TaskState {
   instruction: string;
   status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
+  /** 接着上一个任务的 Claude 会话继续 */
+  resumed: boolean;
   endedAt?: number;
   /** 结束后的一句话摘要，用于语音播报 */
   summary?: string;

@@ -41,6 +41,7 @@ export function TaskPanel({ task, steps }: { task?: TaskState; steps: AgentEvent
       <div className={`task-card ${task.status}`}>
         <div className="task-head">
           <span className={`badge ${task.status}`}>{STATUS_LABEL[task.status]}</span>
+          {task.resumed && <span className="tag">接续上一轮</span>}
           <span className="elapsed">{formatDuration((task.endedAt ?? now) - task.startedAt)}</span>
         </div>
         <p className="instruction">{task.instruction}</p>

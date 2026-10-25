@@ -30,9 +30,9 @@ const staticDir = fileURLToPath(new URL('../../web/dist', import.meta.url));
 
 const device = await loadOrCreateDevice();
 const tasks = new TaskManager(
-  (instruction, onEvent) => {
-    log(`开始任务: ${instruction}`);
-    return runClaude({ instruction, cwd: projectDir, onEvent, log });
+  (instruction, onEvent, resumeSessionId) => {
+    log(`开始任务${resumeSessionId ? '（接续上一轮）' : ''}: ${instruction}`);
+    return runClaude({ instruction, cwd: projectDir, onEvent, resumeSessionId, log });
   },
   { timeoutMs: timeoutMin * 60_000 },
 );

@@ -4,7 +4,7 @@ import { CONVERSATION_LIMIT, STEP_LIMIT, initialState, reducer, type UiState } f
 
 const run = (msgs: ServerMessage[], from: UiState = initialState) =>
   msgs.reduce((s, msg) => reducer(s, { type: 'server', msg }), from);
-const task = (id: string, status: TaskState['status'] = 'running'): TaskState => ({ id, instruction: `任务${id}`, status, startedAt: 0 });
+const task = (id: string, status: TaskState['status'] = 'running'): TaskState => ({ id, instruction: `任务${id}`, status, startedAt: 0, resumed: false });
 
 describe('reducer', () => {
   it('识别结果成为用户发言，一轮回复的多句合并成一个气泡', () => {

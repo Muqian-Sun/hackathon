@@ -283,6 +283,14 @@ pre {
   color: var(--muted);
 }
 
+.tag {
+  font-size: 0.85rem;
+  padding: 0.05rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
 .elapsed {
   font-family: 'SF Mono', Menlo, monospace;
   font-size: 1.1rem;
