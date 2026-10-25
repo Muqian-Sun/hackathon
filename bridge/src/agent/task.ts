@@ -1,9 +1,14 @@
 import { EventEmitter } from 'node:events';
-import type { AgentEvent, TaskState } from '../protocol.js';
+import type { AgentEvent, AgentKind, TaskState } from '../protocol.js';
 import type { AgentRun } from './process.js';
 import { extractSummary } from './summary.js';
 
-export type StartTask = (instruction: string, onEvent: (e: AgentEvent) => void, resumeSessionId?: string) => AgentRun;
+export type StartTask = (
+  instruction: string,
+  onEvent: (e: AgentEvent) => void,
+  resumeSessionId: string | undefined,
+  agent: AgentKind,
+) => AgentRun;
 
 export interface StartOptions {
   /** 用户明确要求新任务时开新会话；默认接着上一个会话 */
@@ -20,12 +25,16 @@ interface TaskEvents {
   agent: [AgentEvent];
   /** 任务结束，携带摘要，用于语音播报 */
   finished: [TaskState];
+  /** 切换了执行任务的 agent */
+  selection: [AgentKind];
 }
 
 export interface TaskManagerOptions {
   now?: () => number;
   /** 超过这个时长就终止任务 */
   timeoutMs?: number;
+  /** 默认用哪个 agent 执行任务 */
+  agent?: AgentKind;
 }
 
 export const DEFAULT_TASK_TIMEOUT_MS = 10 * 60_000;
@@ -39,8 +48,9 @@ export class TaskManager extends EventEmitter<TaskEvents> {
   private handle: AgentRun | undefined;
   private seq = 0;
   private cancelRequested = false;
-  /** 上一个任务的 Claude 会话，下一个任务默认用 --resume 接着做 */
-  private sessionId: string | undefined;
+  /** 每个 agent 上一个任务的会话，下一个任务默认接着做；切换 agent 后再切回来也能接上 */
+  private readonly sessions: Partial<Record<AgentKind, string>> = {};
+  private _agent: AgentKind;
   private readonly now: () => number;
   private readonly timeoutMs: number;
 
@@ -51,10 +61,22 @@ export class TaskManager extends EventEmitter<TaskEvents> {
     super();
     this.now = opts.now ?? Date.now;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS;
+    this._agent = opts.agent ?? 'claude';
   }
 
   get current(): TaskState | undefined {
     return this._current;
+  }
+
+  get agent(): AgentKind {
+    return this._agent;
+  }
+
+  /** 对下一个任务生效，正在执行的任务不受影响 */
+  setAgent(agent: AgentKind): void {
+    if (agent === this._agent) return;
+    this._agent = agent;
+    this.emit('selection', agent);
   }
 
   start(instruction: string, opts: StartOptions = {}): StartResult {
@@ -64,9 +86,12 @@ export class TaskManager extends EventEmitter<TaskEvents> {
       const reason = normalize(cur.instruction) === normalize(instruction) ? 'duplicate' : 'busy';
       return { accepted: false, reason, task: cur };
     }
-    if (opts.newSession) this.sessionId = undefined;
-    const resumeId = this.sessionId;
-    const task: TaskState = { id: String(++this.seq), instruction, status: 'running', startedAt: this.now(), resumed: resumeId !== undefined };
+    const agent = this._agent;
+    if (opts.newSession) delete this.sessions[agent];
+    const resumeId = this.sessions[agent];
+    const task: TaskState = {
+      id: String(++this.seq), instruction, agent, status: 'running', startedAt: this.now(), resumed: resumeId !== undefined,
+    };
     this._current = task;
     this.cancelRequested = false;
     this.emit('task', { ...task });
@@ -76,11 +101,12 @@ export class TaskManager extends EventEmitter<TaskEvents> {
       (e) => {
         if (e.kind === 'start' && e.sessionId) {
           sawStart = true;
-          this.sessionId = e.sessionId;
+          this.sessions[agent] = e.sessionId;
         }
         this.emit('agent', e);
       },
       resumeId,
+      agent,
     );
     this.handle = handle;
     let timedOut = false;
@@ -92,7 +118,7 @@ export class TaskManager extends EventEmitter<TaskEvents> {
     void handle.outcome.then((o) => {
       clearTimeout(timer);
       // 接续的会话已失效时 Claude 不会输出 init 事件；清掉它，免得之后每次都拿坏 id 接续
-      if (resumeId !== undefined && !sawStart) this.sessionId = undefined;
+      if (resumeId !== undefined && !sawStart) delete this.sessions[agent];
       const ok = o.exitCode === 0 && o.done !== undefined && !o.done.isError;
       const claudeSummary = o.done ? extractSummary(o.done.result) : '';
       const stderr = o.stderrTail.trim().split('\n').slice(-ERROR_TAIL_LINES).join('\n');

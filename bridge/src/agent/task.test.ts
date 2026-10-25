@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, TaskState } from '../protocol.js';
+import type { AgentEvent, AgentKind, TaskState } from '../protocol.js';
 import type { RunOutcome } from './process.js';
 import { TaskManager } from './task.js';
 
@@ -8,7 +8,7 @@ function setup(timeoutMs?: number) {
   let emit!: (e: AgentEvent) => void;
   // 模拟进程被终止后以信号退出
   const kill = vi.fn(() => resolve({ exitCode: null, stderrTail: '', done: undefined }));
-  const startTask = vi.fn((_instruction: string, onEvent: (e: AgentEvent) => void, _resume?: string) => {
+  const startTask = vi.fn((_instruction: string, onEvent: (e: AgentEvent) => void, _resume: string | undefined, _agent: AgentKind) => {
     emit = onEvent;
     return { outcome: new Promise<RunOutcome>((r) => (resolve = r)), kill };
   });
@@ -32,7 +32,7 @@ describe('TaskManager', () => {
     tasks.on('agent', (e) => events.push(e));
     const res = tasks.start('修 bug');
     expect(res).toMatchObject({ accepted: true, task: { status: 'running', instruction: '修 bug', startedAt: 1000 } });
-    expect(startTask).toHaveBeenCalledWith('修 bug', expect.any(Function), undefined);
+    expect(startTask).toHaveBeenCalledWith('修 bug', expect.any(Function), undefined, 'claude');
     emit({ kind: 'text', text: 'hi' });
     expect(events).toEqual([{ kind: 'text', text: 'hi' }]);
   });
@@ -179,6 +179,42 @@ describe('TaskManager', () => {
       await finishNth(s, 2, { exitCode: 1, stderrTail: 'boom', done: undefined });
       s.tasks.start('第三次');
       expect(s.startTask.mock.calls[2]![2]).toBe('sess-1');
+    });
+  });
+
+  describe('切换 agent', () => {
+    const ok = { exitCode: 0, done: done('总结：好了'), stderrTail: '' };
+
+    it('默认 agent 可配置；切换只对下一个任务生效并发出 selection 事件', async () => {
+      const s = setup();
+      const selections: AgentKind[] = [];
+      s.tasks.on('selection', (a) => selections.push(a));
+      expect(s.tasks.agent).toBe('claude');
+      s.tasks.start('修 bug');
+      s.tasks.setAgent('codex');
+      s.tasks.setAgent('codex');
+      expect(selections).toEqual(['codex']);
+      expect(s.tasks.current?.agent).toBe('claude');
+      await s.finish(ok);
+      expect(s.tasks.start('再改一下')).toMatchObject({ task: { agent: 'codex' } });
+      expect(s.startTask.mock.calls[1]![3]).toBe('codex');
+      expect(new TaskManager(s.startTask, { agent: 'codex' }).agent).toBe('codex');
+    });
+
+    it('每个 agent 各自记住会话，切回来能接着上次的会话', async () => {
+      const s = setup();
+      s.tasks.start('claude 第一轮');
+      s.emit({ kind: 'start', sessionId: 'claude-1', model: 'm' });
+      await s.finish(ok);
+      s.tasks.setAgent('codex');
+      s.tasks.start('codex 第一轮');
+      expect(s.startTask.mock.calls[1]![2]).toBeUndefined();
+      s.emit({ kind: 'start', sessionId: 'codex-1', model: 'Codex' });
+      await s.finish(ok);
+      await vi.waitFor(() => expect(s.finished).toHaveLength(2));
+      s.tasks.setAgent('claude');
+      expect(s.tasks.start('claude 第二轮')).toMatchObject({ task: { resumed: true, agent: 'claude' } });
+      expect(s.startTask.mock.calls[2]![2]).toBe('claude-1');
     });
   });
 
