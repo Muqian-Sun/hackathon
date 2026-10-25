@@ -117,6 +117,13 @@ pre {
   white-space: nowrap;
 }
 
+.chip.agent,
+.tag.agent {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(124, 108, 240, 0.25);
+}
+
 .chip.ok {
   color: var(--ok);
   border-color: var(--ok);

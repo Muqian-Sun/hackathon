@@ -1,4 +1,4 @@
-import type { AgentEvent, LinxStatus, ServerMessage, TaskState } from '../../bridge/src/protocol';
+import type { AgentEvent, AgentKind, LinxStatus, ServerMessage, TaskState } from '../../bridge/src/protocol';
 
 export const CONVERSATION_LIMIT = 50;
 export const STEP_LIMIT = 500;
@@ -15,6 +15,8 @@ export interface UiState {
   /** 灵矽正在说话（tts start 到 tts stop 之间） */
   speaking: boolean;
   conversation: Utterance[];
+  /** 下一个任务由哪个 agent 执行 */
+  agent: AgentKind;
   task?: TaskState;
   steps: AgentEvent[];
   /** 当前这轮回复是否已有气泡，后续句子接在后面 */
@@ -29,6 +31,7 @@ export const initialState: UiState = {
   linx: 'disconnected',
   speaking: false,
   conversation: [],
+  agent: 'claude',
   steps: [],
   turnOpen: false,
   nextId: 1,
@@ -68,5 +71,7 @@ export function reducer(state: UiState, action: UiAction): UiState {
       return { ...state, task: msg.task, steps: msg.task.id === state.task?.id ? state.steps : [] };
     case 'agent':
       return { ...state, steps: capped([...state.steps, msg.event], STEP_LIMIT) };
+    case 'selected_agent':
+      return { ...state, agent: msg.agent };
   }
 }

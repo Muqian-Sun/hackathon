@@ -12,12 +12,13 @@ export function App() {
         linx={state.linx}
         mic={mic}
         speaking={state.speaking}
+        agent={state.agent}
         onStart={startMic}
         onStop={stopMic}
       />
       <main className="layout">
         <Conversation conversation={state.conversation} micError={micError} onSend={sendText} />
-        <TaskPanel task={state.task} steps={state.steps} />
+        <TaskPanel task={state.task} steps={state.steps} agent={state.agent} />
       </main>
     </div>
   );

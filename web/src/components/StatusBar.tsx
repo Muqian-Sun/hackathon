@@ -1,4 +1,5 @@
-import type { LinxStatus } from '../../../bridge/src/protocol';
+import type { AgentKind, LinxStatus } from '../../../bridge/src/protocol';
+import { AGENT_LABEL } from '../agents';
 import type { MicState } from '../useVoiceBridge';
 
 interface Props {
@@ -6,6 +7,7 @@ interface Props {
   linx: LinxStatus;
   mic: MicState;
   speaking: boolean;
+  agent: AgentKind;
   onStart: () => void;
   onStop: () => void;
 }
@@ -19,7 +21,7 @@ function voiceHint(mic: MicState, speaking: boolean): { text: string; tone: stri
   return { text: '点「开始」后直接说话', tone: 'idle' };
 }
 
-export function StatusBar({ bridgeOpen, linx, mic, speaking, onStart, onStop }: Props) {
+export function StatusBar({ bridgeOpen, linx, mic, speaking, agent, onStart, onStop }: Props) {
   const hint = voiceHint(mic, speaking);
   return (
     <header className="status-bar">
@@ -29,6 +31,7 @@ export function StatusBar({ bridgeOpen, linx, mic, speaking, onStart, onStop }: 
         {hint.text}
       </div>
       <div className="chips">
+        <span className="chip agent">{AGENT_LABEL[agent]}</span>
         <span className={`chip ${bridgeOpen ? 'ok' : 'bad'}`}>本机服务 {bridgeOpen ? '已连接' : '未连接'}</span>
         <span className={`chip ${linx === 'connected' ? 'ok' : linx === 'connecting' ? 'warn' : 'muted'}`}>灵矽 {LINX_LABEL[linx]}</span>
         {mic === 'on' ? (

@@ -4,7 +4,7 @@ import { CONVERSATION_LIMIT, STEP_LIMIT, initialState, reducer, type UiState } f
 
 const run = (msgs: ServerMessage[], from: UiState = initialState) =>
   msgs.reduce((s, msg) => reducer(s, { type: 'server', msg }), from);
-const task = (id: string, status: TaskState['status'] = 'running'): TaskState => ({ id, instruction: `任务${id}`, status, startedAt: 0, resumed: false });
+const task = (id: string, status: TaskState['status'] = 'running'): TaskState => ({ id, instruction: `任务${id}`, status, startedAt: 0, resumed: false, agent: 'claude' });
 
 describe('reducer', () => {
   it('识别结果成为用户发言，一轮回复的多句合并成一个气泡', () => {
@@ -61,6 +61,11 @@ describe('reducer', () => {
     const reopened = reducer(reducer(s, { type: 'bridge', open: false }), { type: 'bridge', open: true });
     expect(reopened).toMatchObject({ bridgeOpen: true, steps: [], conversation: [], turnOpen: false });
     expect(reopened.task).toBeUndefined();
+  });
+
+  it('记录当前选中的 agent，默认 Claude Code', () => {
+    expect(initialState.agent).toBe('claude');
+    expect(run([{ type: 'selected_agent', agent: 'codex' }]).agent).toBe('codex');
   });
 
   it('桥接断开时灵矽状态归为断开，停止说话', () => {
