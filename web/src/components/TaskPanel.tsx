@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AgentEvent, TaskState } from '../../../bridge/src/protocol';
+import type { AgentEvent, AgentKind, TaskState } from '../../../bridge/src/protocol';
+import { AGENT_LABEL } from '../agents';
 import { buildTimeline } from '../timeline';
 import { useAutoScroll } from '../useAutoScroll';
 import { Timeline } from './Timeline';
@@ -21,7 +22,7 @@ function formatDuration(ms: number) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 }
 
-export function TaskPanel({ task, steps }: { task?: TaskState; steps: AgentEvent[] }) {
+export function TaskPanel({ task, steps, agent }: { task?: TaskState; steps: AgentEvent[]; agent: AgentKind }) {
   const running = task?.status === 'running';
   const now = useNow(running);
   const items = useMemo(() => buildTimeline(steps), [steps]);
@@ -30,8 +31,8 @@ export function TaskPanel({ task, steps }: { task?: TaskState; steps: AgentEvent
   if (!task) {
     return (
       <section className="panel task">
-        <h2>Claude Code</h2>
-        <p className="empty">还没有任务。说出编程需求后，Claude Code 的每一步都会显示在这里。</p>
+        <h2>{AGENT_LABEL[agent]}</h2>
+        <p className="empty">还没有任务。说出编程需求后，{AGENT_LABEL[agent]} 的每一步都会显示在这里。</p>
       </section>
     );
   }
@@ -41,6 +42,7 @@ export function TaskPanel({ task, steps }: { task?: TaskState; steps: AgentEvent
       <div className={`task-card ${task.status}`}>
         <div className="task-head">
           <span className={`badge ${task.status}`}>{STATUS_LABEL[task.status]}</span>
+          <span className="tag agent">{AGENT_LABEL[task.agent]}</span>
           {task.resumed && <span className="tag">接续上一轮</span>}
           <span className="elapsed">{formatDuration((task.endedAt ?? now) - task.startedAt)}</span>
         </div>

@@ -42,7 +42,7 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
           case 'start':
             return (
               <li key={i} className="step meta">
-                Claude Code 已启动
+                开始执行
               </li>
             );
           case 'thinking':
