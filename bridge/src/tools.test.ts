@@ -17,10 +17,10 @@ describe('createCodingTools', () => {
     expect([run.name, status.name]).toEqual(['self.coding.run_task', 'self.coding.get_status']);
   });
 
-  it('run_task 立即返回「已开始」，不说已完成', async () => {
+  it('run_task 立即返回「开始执行」，不说已完成', async () => {
     const { run, tasks } = setup();
     const text = await run.handler({ instruction: '修 bug' });
-    expect(text).toContain('已开始');
+    expect(text).toContain('开始执行');
     expect(text).not.toContain('已完成');
     expect(tasks.current?.status).toBe('running');
   });
