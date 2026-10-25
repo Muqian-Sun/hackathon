@@ -4,7 +4,7 @@ import { buildTimeline } from '../timeline';
 import { useAutoScroll } from '../useAutoScroll';
 import { Timeline } from './Timeline';
 
-const STATUS_LABEL: Record<TaskState['status'], string> = { running: '执行中', succeeded: '已完成', failed: '失败' };
+const STATUS_LABEL: Record<TaskState['status'], string> = { running: '执行中', succeeded: '已完成', failed: '失败', cancelled: '已停止' };
 
 function useNow(active: boolean) {
   const [now, setNow] = useState(Date.now());

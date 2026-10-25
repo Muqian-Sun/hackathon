@@ -18,7 +18,7 @@ export type AgentEvent =
 export interface TaskState {
   id: string;
   instruction: string;
-  status: 'running' | 'succeeded' | 'failed';
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
   endedAt?: number;
   /** 结束后的一句话摘要，用于语音播报 */

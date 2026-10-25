@@ -10,8 +10,14 @@ export function formatElapsed(ms: number): string {
 }
 
 function describe(task: TaskState, now: number): string {
-  if (task.status === 'running') return `正在执行：${brief(task.instruction)}，已运行 ${formatElapsed(now - task.startedAt)}。`;
-  return `上一个任务${task.status === 'succeeded' ? '已完成' : '没有成功'}：${task.summary ?? ''}`;
+  switch (task.status) {
+    case 'running':
+      return `正在执行：${brief(task.instruction)}，已运行 ${formatElapsed(now - task.startedAt)}。`;
+    case 'cancelled':
+      return '上一个任务已经按要求停止了。';
+    default:
+      return `上一个任务${task.status === 'succeeded' ? '已完成' : '没有成功'}：${task.summary ?? ''}`;
+  }
 }
 
 /** 返回给灵矽大模型的文字不能写「已完成」，否则它会提前宣布任务完成 */
@@ -32,8 +38,15 @@ export function createCodingTools(tasks: TaskManager, now: () => number = Date.n
         const res = tasks.start(instruction);
         if (res.accepted) return '已在后台开始执行，完成后会自动语音通知用户。用一句不超过十个字的话告诉用户已经开始。';
         if (res.reason === 'duplicate') return '这个任务已经在后台执行中，完成后会主动语音通知用户。';
-        return `上一个任务还在执行（${brief(res.task.instruction)}，已运行 ${formatElapsed(now() - res.task.startedAt)}），请等它结束后再提新任务。`;
+        return `上一个任务还在执行（${brief(res.task.instruction)}，已运行 ${formatElapsed(now() - res.task.startedAt)}），请等它结束，或者让用户说「停下」先中止它。`;
       },
+    },
+    {
+      name: 'self.coding.stop_task',
+      description: '用户要求停止、取消、中止、别改了、先停一下时调用，立即中止正在执行的编程任务。',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+      handler: async () =>
+        tasks.cancel() ? '已经中止当前任务。用一句话告诉用户已经停下了。' : '当前没有正在执行的编程任务，不需要停止。',
     },
     {
       name: 'self.coding.get_status',

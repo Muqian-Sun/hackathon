@@ -271,6 +271,18 @@ pre {
   background: var(--bad);
 }
 
+.badge.cancelled {
+  background: var(--muted);
+}
+
+.task-card.cancelled {
+  border-color: var(--muted);
+}
+
+.task-card.cancelled .summary {
+  color: var(--muted);
+}
+
 .elapsed {
   font-family: 'SF Mono', Menlo, monospace;
   font-size: 1.1rem;
