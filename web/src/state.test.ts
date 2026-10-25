@@ -51,12 +51,16 @@ describe('reducer', () => {
     expect(s2.steps).toEqual([]);
   });
 
-  it('桥接重连时清空任务和步骤，等服务端快照重新填充', () => {
-    const s = run([{ type: 'task', task: task('1') }, { type: 'agent', event: { kind: 'text', text: 'x' } }]);
+  it('桥接重连时清空对话、任务和步骤，等服务端快照重新填充', () => {
+    const s = run([
+      { type: 'stt', text: '修 bug' },
+      { type: 'tts', state: 'sentence', text: '好的' },
+      { type: 'task', task: task('1') },
+      { type: 'agent', event: { kind: 'text', text: 'x' } },
+    ]);
     const reopened = reducer(reducer(s, { type: 'bridge', open: false }), { type: 'bridge', open: true });
-    expect(reopened).toMatchObject({ bridgeOpen: true, steps: [] });
+    expect(reopened).toMatchObject({ bridgeOpen: true, steps: [], conversation: [], turnOpen: false });
     expect(reopened.task).toBeUndefined();
-    expect(reopened.conversation).toEqual(s.conversation);
   });
 
   it('桥接断开时灵矽状态归为断开，停止说话', () => {

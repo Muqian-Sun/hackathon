@@ -30,6 +30,8 @@ export interface BridgeServer {
 }
 
 export const AGENT_HISTORY_LIMIT = 500;
+/** 按消息条数计，一轮回复约 3–5 条（tts start / sentence / stop） */
+export const CONVERSATION_HISTORY_LIMIT = 300;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -70,6 +72,12 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
   const wss = new WebSocketServer({ server: http, path: '/ws' });
   const micOn = new Set<WebSocket>();
   let agentHistory: AgentEvent[] = [];
+  const conversationHistory: ServerMessage[] = [];
+  const remember = (msg: ServerMessage) => {
+    conversationHistory.push(msg);
+    if (conversationHistory.length > CONVERSATION_HISTORY_LIMIT) conversationHistory.shift();
+    broadcast(msg);
+  };
 
   const broadcast = (data: Buffer | ServerMessage) => {
     const payload = Buffer.isBuffer(data) ? data : JSON.stringify(data);
@@ -79,8 +87,8 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
   const syncListening = () => linx.setListening(micOn.size > 0);
 
   const onStatus = (status: LinxStatus) => broadcast({ type: 'linx', status });
-  const onStt = (text: string) => broadcast({ type: 'stt', text });
-  const onTts = (e: LinxEvents['tts'][0]) => broadcast({ type: 'tts', ...e });
+  const onStt = (text: string) => remember({ type: 'stt', text });
+  const onTts = (e: LinxEvents['tts'][0]) => remember({ type: 'tts', ...e });
   const onAudio = (frame: Buffer) => broadcast(frame);
   const onTask = (task: TaskState) => {
     if (task.status === 'running') agentHistory = [];
@@ -100,6 +108,7 @@ export async function startServer(opts: BridgeServerOptions): Promise<BridgeServ
 
   wss.on('connection', (ws) => {
     sendTo(ws, { type: 'linx', status: linx.status });
+    for (const msg of conversationHistory) sendTo(ws, msg);
     if (tasks.current) sendTo(ws, { type: 'task', task: tasks.current });
     for (const event of agentHistory) sendTo(ws, { type: 'agent', event });
 
