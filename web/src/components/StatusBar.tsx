@@ -8,6 +8,8 @@ interface Props {
   mic: MicState;
   speaking: boolean;
   agent: AgentKind;
+  tvMode: boolean;
+  onToggleTv: () => void;
   onStart: () => void;
   onStop: () => void;
 }
@@ -21,7 +23,7 @@ function voiceHint(mic: MicState, speaking: boolean): { text: string; tone: stri
   return { text: '点「开始」后直接说话', tone: 'idle' };
 }
 
-export function StatusBar({ bridgeOpen, linx, mic, speaking, agent, onStart, onStop }: Props) {
+export function StatusBar({ bridgeOpen, linx, mic, speaking, agent, tvMode, onToggleTv, onStart, onStop }: Props) {
   const hint = voiceHint(mic, speaking);
   return (
     <header className="status-bar">
@@ -32,6 +34,9 @@ export function StatusBar({ bridgeOpen, linx, mic, speaking, agent, onStart, onS
       </div>
       <div className="chips">
         <span className="chip agent">{AGENT_LABEL[agent]}</span>
+        <button className={`btn toggle ${tvMode ? 'on' : ''}`} onClick={onToggleTv}>
+          大屏模式 {tvMode ? '开' : '关'}
+        </button>
         <span className={`chip ${bridgeOpen ? 'ok' : 'bad'}`}>本机服务 {bridgeOpen ? '已连接' : '未连接'}</span>
         <span className={`chip ${linx === 'connected' ? 'ok' : linx === 'connecting' ? 'warn' : 'muted'}`}>灵矽 {LINX_LABEL[linx]}</span>
         {mic === 'on' ? (
