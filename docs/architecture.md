@@ -8,9 +8,9 @@
 
 | 功能 | 解决的痛点 | 状态 |
 |---|---|---|
-| F1 语音下任务：说话 → 灵矽识别 → 灵矽大模型调用本机工具 → Claude Code 执行 | 手不碰键盘也能编程 | 开发中 |
-| F2 大屏实时面板：识别文字、agent 每一步（读/改了哪个文件、跑了什么命令）、diff | 离屏幕几米也知道 agent 在做什么 | 开发中 |
-| F3 完成后语音播报一两句摘要，细节留在屏幕上 | 不用一直盯着；长输出不适合念 | 开发中 |
+| F1 语音下任务：说话 → 灵矽识别 → 灵矽大模型调用本机工具 → Claude Code / Codex 执行 | 手不碰键盘也能编程 | 已完成 |
+| F2 大屏实时面板：识别文字、agent 每一步（读/改了哪个文件、跑了什么命令）、diff；大屏模式放大当前焦点、识别测试结果、显示字幕 | 离屏幕几米也知道 agent 在做什么 | 已完成 |
+| F3 完成后语音播报一两句摘要，细节留在屏幕上 | 不用一直盯着；长输出不适合念 | 已完成 |
 
 MVP 之后已加入：多轮接续（默认接着上一个 Claude 会话，说「新任务」才开新会话）、语音中止任务。
 
@@ -78,6 +78,9 @@ web/                        网页（Vite + React）
   src/audio/player.ts       按到达顺序无缝播放 16kHz PCM
   src/bridge.ts             与桥接服务的 WebSocket 连接，断开每秒重连
   src/state.ts              服务端消息归约成界面状态（纯函数）
+  src/timeline.ts           步骤事件整理成时间线，行级 diff
+  src/focus.ts              大屏焦点（最近的 diff 或命令）与测试结果识别（vitest/jest/pytest/unittest/go test/PASS-FAIL 行）
+  src/useTvMode.ts          大屏模式开关：宽度 ≥ 1600 默认开启，手动切换后记住
   src/useVoiceBridge.ts     组合连接、收音、播放，实现半双工
   src/App.tsx               大屏面板
 docs/                       架构、验证报告
