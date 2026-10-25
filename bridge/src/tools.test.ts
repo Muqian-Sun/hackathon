@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RunOutcome } from './agent/claude.js';
+import type { RunOutcome } from './agent/process.js';
 import { TaskManager } from './agent/task.js';
 import { createCodingTools, formatElapsed } from './tools.js';
 

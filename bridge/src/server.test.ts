@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
-import type { RunOutcome } from './agent/claude.js';
+import type { RunOutcome } from './agent/process.js';
 import { TaskManager } from './agent/task.js';
 import type { LinxEvents } from './linx/client.js';
 import type { AgentEvent, LinxStatus } from './protocol.js';
