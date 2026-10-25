@@ -20,7 +20,7 @@ function setup() {
 describe('createCodingTools', () => {
   it('工具名与架构文档一致', () => {
     const { tools } = setup();
-    expect(tools.map((x) => x.name)).toEqual(['self.coding.run_task', 'self.coding.stop_task', 'self.coding.get_status']);
+    expect(tools.map((x) => x.name)).toEqual(['self.coding.run_task', 'self.coding.stop_task', 'self.coding.switch_agent', 'self.coding.get_status']);
   });
 
   it('stop_task 中止执行中的任务；没有任务时说明不需要停止', async () => {
@@ -76,6 +76,28 @@ describe('createCodingTools', () => {
     resolve({ exitCode: 1, stderrTail: 'boom', done: undefined });
     await finished;
     expect(await status.handler({})).toBe('上一个任务没有成功：任务失败，详情请看屏幕');
+  });
+});
+
+describe('switch_agent', () => {
+  it('切换后下一个任务由新 agent 执行；同一个 agent 不重复切换；不支持的 agent 报错', async () => {
+    const { tools, tasks, run } = setup();
+    const sw = tools.find((x) => x.name === 'self.coding.switch_agent')!;
+    const selections: string[] = [];
+    tasks.on('selection', (a) => selections.push(a));
+    expect(await sw.handler({ agent: 'claude' })).toContain('不需要切换');
+    expect(await sw.handler({ agent: 'codex' })).toContain('已切换到 Codex');
+    expect(selections).toEqual(['codex']);
+    await run.handler({ instruction: '修 bug' });
+    expect(tasks.current?.agent).toBe('codex');
+    await expect(sw.handler({ agent: 'gemini' })).rejects.toThrow('不支持的 agent');
+  });
+
+  it('任务执行中切换时说明当前任务仍由原 agent 完成', async () => {
+    const { tools, run } = setup();
+    const sw = tools.find((x) => x.name === 'self.coding.switch_agent')!;
+    await run.handler({ instruction: '修 bug' });
+    expect(await sw.handler({ agent: 'codex' })).toContain('正在执行的任务仍由 Claude Code 完成');
   });
 });
 

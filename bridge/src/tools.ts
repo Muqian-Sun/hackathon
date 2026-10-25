@@ -1,6 +1,9 @@
 import type { TaskManager } from './agent/task.js';
-import type { TaskState } from './protocol.js';
+import type { AgentKind, TaskState } from './protocol.js';
 import type { ToolDef } from './linx/mcp.js';
+
+export const AGENT_LABEL: Record<AgentKind, string> = { claude: 'Claude Code', codex: 'Codex' };
+const AGENT_KINDS = Object.keys(AGENT_LABEL) as AgentKind[];
 
 const brief = (s: string, n = 30) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
@@ -26,14 +29,14 @@ export function createCodingTools(tasks: TaskManager, now: () => number = Date.n
     {
       name: 'self.coding.run_task',
       // 「调用前不要回复」与「一句话」两处措辞是实测出来的：否则灵矽会在调用前后各说一遍「已经开始」
-      description: '把用户的编程需求交给 Claude Code 在本机项目里执行，例如写代码、改代码、查看项目、跑测试。用户问起项目和代码的问题（比如刚才改了什么、为什么这样改、某个文件里有什么）也调用本工具，Claude Code 记得之前做过的事。听到这类需求时先直接调用本工具，调用前不要回复用户。任务在后台执行，完成后会自动语音通知用户。',
+      description: '把用户的编程需求交给本机的编程 agent（Claude Code 或 Codex）在项目里执行，例如写代码、改代码、查看项目、跑测试。用户问起项目和代码的问题（比如刚才改了什么、为什么这样改、某个文件里有什么）也调用本工具，编程 agent 记得之前做过的事。听到这类需求时先直接调用本工具，调用前不要回复用户。任务在后台执行，完成后会自动语音通知用户。',
       inputSchema: {
         type: 'object',
         properties: {
           instruction: { type: 'string', description: '整理后的完整中文编程指令' },
           new_task: {
             type: 'boolean',
-            description: '只有用户明确说「新任务」「换个任务」「重新开始」时才填 true。默认不填，Claude Code 会记得之前做过的事，接着上一个任务继续',
+            description: '只有用户明确说「新任务」「换个任务」「重新开始」时才填 true。默认不填，编程 agent 会记得之前做过的事，接着上一个任务继续',
           },
         },
         required: ['instruction'],
@@ -54,6 +57,23 @@ export function createCodingTools(tasks: TaskManager, now: () => number = Date.n
       inputSchema: { type: 'object', properties: {}, required: [] },
       handler: async () =>
         tasks.cancel() ? '已经中止当前任务。用一句话告诉用户已经停下了。' : '当前没有正在执行的编程任务，不需要停止。',
+    },
+    {
+      name: 'self.coding.switch_agent',
+      description: '用户要求换成 Codex、换回 Claude Code 时调用，之后的编程任务交给所选的 agent。',
+      inputSchema: {
+        type: 'object',
+        properties: { agent: { type: 'string', enum: AGENT_KINDS, description: 'claude 表示 Claude Code，codex 表示 Codex' } },
+        required: ['agent'],
+      },
+      handler: async (args) => {
+        const agent = args.agent as AgentKind;
+        if (!AGENT_KINDS.includes(agent)) throw new Error(`不支持的 agent: ${String(args.agent)}，可选 ${AGENT_KINDS.join('、')}`);
+        if (agent === tasks.agent) return `当前已经是 ${AGENT_LABEL[agent]}，不需要切换。`;
+        tasks.setAgent(agent);
+        const running = tasks.current?.status === 'running' ? `正在执行的任务仍由 ${AGENT_LABEL[tasks.current.agent]} 完成，` : '';
+        return `已切换到 ${AGENT_LABEL[agent]}，${running}之后的任务由 ${AGENT_LABEL[agent]} 来做。用一句话告诉用户。`;
+      },
     },
     {
       name: 'self.coding.get_status',

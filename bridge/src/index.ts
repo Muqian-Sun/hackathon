@@ -2,17 +2,20 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runClaude } from './agent/claude.js';
+import { runCodex } from './agent/codex.js';
+import type { AgentRun, RunAgentOptions } from './agent/process.js';
 import { TaskManager } from './agent/task.js';
+import type { AgentKind } from './protocol.js';
 import { LinxClient } from './linx/client.js';
 import { loadOrCreateDevice } from './linx/device.js';
 import { reportOta } from './linx/ota.js';
 import { startServer } from './server.js';
-import { createCodingTools } from './tools.js';
+import { AGENT_LABEL, createCodingTools } from './tools.js';
 
 const log = (msg: string) => console.log(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${msg}`);
 
 if (!process.env.PROJECT_DIR) {
-  console.error('请用 PROJECT_DIR 指定要让 Claude Code 修改的项目目录，例如 PROJECT_DIR=~/code/demo pnpm start');
+  console.error('请用 PROJECT_DIR 指定要让编程 agent 修改的项目目录，例如 PROJECT_DIR=~/code/demo pnpm start');
   process.exit(1);
 }
 const projectDir = resolve(process.env.PROJECT_DIR);
@@ -26,16 +29,23 @@ if (!(timeoutMin > 0)) {
   console.error(`TASK_TIMEOUT_MIN 必须是正数: ${process.env.TASK_TIMEOUT_MIN}`);
   process.exit(1);
 }
+const defaultAgent = (process.env.CODE_AGENT ?? 'claude') as AgentKind;
+if (!(defaultAgent in AGENT_LABEL)) {
+  console.error(`CODE_AGENT 只能是 ${Object.keys(AGENT_LABEL).join(' 或 ')}: ${process.env.CODE_AGENT}`);
+  process.exit(1);
+}
 const staticDir = fileURLToPath(new URL('../../web/dist', import.meta.url));
 
+const runners: Record<AgentKind, (opts: RunAgentOptions) => AgentRun> = { claude: runClaude, codex: runCodex };
 const device = await loadOrCreateDevice();
 const tasks = new TaskManager(
-  (instruction, onEvent, resumeSessionId) => {
-    log(`开始任务${resumeSessionId ? '（接续上一轮）' : ''}: ${instruction}`);
-    return runClaude({ instruction, cwd: projectDir, onEvent, resumeSessionId, log });
+  (instruction, onEvent, resumeSessionId, agent) => {
+    log(`开始任务（${AGENT_LABEL[agent]}${resumeSessionId ? '，接续上一轮' : ''}）: ${instruction}`);
+    return runners[agent]({ instruction, cwd: projectDir, onEvent, resumeSessionId, log });
   },
-  { timeoutMs: timeoutMin * 60_000 },
+  { timeoutMs: timeoutMin * 60_000, agent: defaultAgent },
 );
+tasks.on('selection', (agent) => log(`切换到 ${AGENT_LABEL[agent]}`));
 const linx = new LinxClient({
   device,
   getCredentials: async () => {
@@ -57,7 +67,7 @@ tasks.on('finished', (task) => {
 });
 
 const server = await startServer({ linx, tasks, port, staticDir });
-log(`项目目录: ${projectDir}`);
+log(`项目目录: ${projectDir}，默认 agent: ${AGENT_LABEL[defaultAgent]}`);
 log(`打开 http://localhost:${server.port}`);
 
 let shuttingDown = false;
